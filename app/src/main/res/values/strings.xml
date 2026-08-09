@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="quick_screenshot_accessibility_description">在使用者主動點擊浮動按鈕時擷取螢幕並保存到本機。服務不會讀取畫面文字、不會自動操作其他 App，也不會上傳截圖。</string>
+</resources>
