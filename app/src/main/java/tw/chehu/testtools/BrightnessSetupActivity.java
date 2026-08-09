@@ -36,6 +36,7 @@ public class BrightnessSetupActivity extends Activity {
     private EditText customInput;
     private CheckBox maximumBrightness;
     private RadioGroup shapeGroup;
+    private int circleButtonId;
     private SharedPreferences preferences;
     private boolean settingsReady;
 
@@ -66,10 +67,11 @@ public class BrightnessSetupActivity extends Activity {
         shapeGroup.setOrientation(LinearLayout.HORIZONTAL);
         RadioButton square = new RadioButton(this);
         square.setText("方形");
-        square.setId(1001);
+        square.setId(View.generateViewId());
         RadioButton circle = new RadioButton(this);
         circle.setText("圓形");
-        circle.setId(1002);
+        circleButtonId = View.generateViewId();
+        circle.setId(circleButtonId);
         boolean useCircle = preferences.getBoolean(KEY_CIRCLE, false);
         square.setChecked(!useCircle);
         circle.setChecked(useCircle);
@@ -243,7 +245,8 @@ public class BrightnessSetupActivity extends Activity {
         }
         Intent intent = new Intent(this, BrightnessTestActivity.class);
         intent.putIntegerArrayListExtra(BrightnessTestActivity.EXTRA_PERCENTAGES, selected);
-        intent.putExtra(BrightnessTestActivity.EXTRA_CIRCLE, shapeGroup.getCheckedRadioButtonId() == 1002);
+        intent.putExtra(BrightnessTestActivity.EXTRA_CIRCLE,
+                shapeGroup.getCheckedRadioButtonId() == circleButtonId);
         intent.putExtra(BrightnessTestActivity.EXTRA_MAX_BRIGHTNESS, maximumBrightness.isChecked());
         startActivity(intent);
     }
@@ -289,7 +292,8 @@ public class BrightnessSetupActivity extends Activity {
         preferences.edit()
                 .putString(KEY_AVAILABLE, joinValues(available))
                 .putString(KEY_SELECTED, joinValues(checkedValues()))
-                .putBoolean(KEY_CIRCLE, shapeGroup != null && shapeGroup.getCheckedRadioButtonId() == 1002)
+                .putBoolean(KEY_CIRCLE,
+                        shapeGroup != null && shapeGroup.getCheckedRadioButtonId() == circleButtonId)
                 .putBoolean(KEY_MAX_BRIGHTNESS, maximumBrightness == null || maximumBrightness.isChecked())
                 .putInt(KEY_CUSTOM_VALUE, customInput == null ? 15 : parseCustom())
                 .apply();

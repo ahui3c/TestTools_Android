@@ -6,6 +6,7 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -15,7 +16,9 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getWindow().setStatusBarColor(Ui.color("#F8FAFC"));
-        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+        getWindow().setNavigationBarColor(Ui.color("#F8FAFC"));
+        getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
 
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
@@ -32,22 +35,20 @@ public class MainActivity extends Activity {
         subtitle.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 24));
         content.addView(subtitle);
 
-        addCard(content, "01", "常用測試素材", "從雲端資料庫清單開啟圖片、影片、音訊與其他測試檔案", () -> openLinks("常用測試素材"));
-        addCard(content, "02", "常用程式", "從雲端資料庫清單前往常用工具、網站或下載頁面", () -> openLinks("常用程式"));
-        addCard(content, "03", "測試亮度", "全螢幕顯示自訂比例的白色方形或圓形測試區域", () -> startActivity(new Intent(this, BrightnessSetupActivity.class)));
-        addCard(content, "04", "浮動快速截圖", "在其他 App 上方顯示時間與電量，點一下立即保存螢幕截圖", () -> startActivity(new Intent(this, ScreenshotSettingsActivity.class)));
-        addCard(content, "05", "影音快速備份", "將 DCIM／Pictures 備份至 LocalSend 接收端或 USB 外接磁碟", () -> startActivity(new Intent(this, tw.chehu.quicksend.MainActivity.class)));
+        addCard(content, R.drawable.ic_module_resources, "常用資源", "在測試素材與常用程式頁簽間切換，快速開啟檔案、工具與網站", this::openLinks);
+        addCard(content, R.drawable.ic_module_brightness, "測試亮度", "全螢幕顯示自訂比例的白色方形或圓形測試區域", () -> startActivity(new Intent(this, BrightnessSetupActivity.class)));
+        addCard(content, R.drawable.ic_module_screenshot, "浮動快速截圖", "在其他 App 上方顯示時間與電量，點一下立即保存螢幕截圖", () -> startActivity(new Intent(this, ScreenshotSettingsActivity.class)));
+        addCard(content, R.drawable.ic_module_backup, "影音快速備份", "將 DCIM／Pictures 備份至 LocalSend 接收端或 USB 外接磁碟", () -> startActivity(new Intent(this, tw.chehu.quicksend.MainActivity.class)));
+        addCard(content, R.drawable.ic_module_battery, "充電數據監控", "每分鐘低負載記錄電量、充電狀態與電池端估算功率，可匯出 CSV", () -> startActivity(new Intent(this, ChargingMonitorActivity.class)));
 
         setContentView(scroll);
     }
 
-    private void openLinks(String category) {
-        Intent intent = new Intent(this, LinkListActivity.class);
-        intent.putExtra(LinkListActivity.EXTRA_CATEGORY, category);
-        startActivity(intent);
+    private void openLinks() {
+        startActivity(new Intent(this, LinkListActivity.class));
     }
 
-    private void addCard(LinearLayout parent, String number, String title, String detail, Runnable action) {
+    private void addCard(LinearLayout parent, int iconResource, String title, String detail, Runnable action) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.HORIZONTAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
@@ -58,8 +59,11 @@ public class MainActivity extends Activity {
         cardParams.bottomMargin = Ui.dp(this, 14);
         parent.addView(card, cardParams);
 
-        TextView badge = Ui.text(this, number, 13, Color.WHITE, true);
-        badge.setGravity(Gravity.CENTER);
+        ImageView badge = new ImageView(this);
+        badge.setImageResource(iconResource);
+        badge.setContentDescription(title);
+        badge.setScaleType(ImageView.ScaleType.CENTER);
+        badge.setPadding(Ui.dp(this, 11), Ui.dp(this, 11), Ui.dp(this, 11), Ui.dp(this, 11));
         badge.setBackground(Ui.background(Ui.color("#2563EB"), 12, this));
         card.addView(badge, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
 

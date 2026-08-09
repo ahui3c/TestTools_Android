@@ -10,8 +10,8 @@ android {
         applicationId = "tw.chehu.testtools"
         minSdk = 26
         targetSdk = 36
-        versionCode = 9
-        versionName = "1.8"
+        versionCode = 19
+        versionName = "1.18"
     }
 
     compileOptions {

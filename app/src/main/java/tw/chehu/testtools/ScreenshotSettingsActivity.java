@@ -47,7 +47,7 @@ public class ScreenshotSettingsActivity extends Activity {
         content.addView(back);
         content.addView(Ui.text(this, "浮動快速截圖", 28, Ui.color("#0F172A"), true));
         TextView intro = Ui.text(this,
-                "浮動按鈕會顯示現在時間與設備電量；可拖曳到任意位置，輕點後才會擷取。截圖只保存在本機 Pictures/TestTools Captures，不會自動上傳。",
+                "浮動按鈕會顯示現在時間與設備電量；可拖曳到任意位置，輕點後才會擷取。截圖會自動保存至系統 Pictures/Screenshots；若偵測到手機使用 DCIM/Screenshots 則會自動沿用，不會建立 App 專屬資料夾。",
                 14, Ui.color("#64748B"), false);
         intro.setPadding(0, Ui.dp(this, 7), 0, Ui.dp(this, 18));
         content.addView(intro);
@@ -64,12 +64,12 @@ public class ScreenshotSettingsActivity extends Activity {
                 preferences.getBoolean(FloatingCaptureOverlay.KEY_SHOW_TIME, true));
         CheckBox showBattery = option("浮動按鈕顯示設備電量",
                 preferences.getBoolean(FloatingCaptureOverlay.KEY_SHOW_BATTERY, true));
-        CheckBox flashFeedback = option("截圖成功時顯示白色閃光",
+        CheckBox flashFeedback = option("截圖成功時顯示明顯白色閃光",
                 preferences.getBoolean(FloatingCaptureOverlay.KEY_FLASH_FEEDBACK, true));
-        CheckBox vibrateFeedback = option("截圖成功時輕微震動",
-                preferences.getBoolean(FloatingCaptureOverlay.KEY_VIBRATE_FEEDBACK, true));
-        CheckBox soundFeedback = option("截圖成功時播放提示音",
-                preferences.getBoolean(FloatingCaptureOverlay.KEY_SOUND_FEEDBACK, true));
+        CheckBox vibrateFeedback = option("截圖成功時使用雙段震動",
+                preferences.getBoolean(FloatingCaptureOverlay.KEY_VIBRATE_FEEDBACK, false));
+        CheckBox soundFeedback = option("截圖成功時播放清晰快門提示音",
+                preferences.getBoolean(FloatingCaptureOverlay.KEY_SOUND_FEEDBACK, false));
         LinearLayout options = panel();
         options.addView(showTime);
         options.addView(showBattery);

@@ -20,17 +20,22 @@ import java.util.concurrent.Executors;
 
 public class LinkListActivity extends Activity {
     public static final String EXTRA_CATEGORY = "category";
+    private static final String CATEGORY_MATERIALS = "常用測試素材";
+    private static final String CATEGORY_APPS = "常用程式";
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private String category;
+    private List<LinkItem> currentItems;
     private LinearLayout listContainer;
     private TextView syncStatus;
+    private TextView materialsTab;
+    private TextView appsTab;
     private Button refreshButton;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         category = getIntent().getStringExtra(EXTRA_CATEGORY);
-        if (category == null) category = "連結";
+        if (!CATEGORY_APPS.equals(category)) category = CATEGORY_MATERIALS;
 
         ScrollView scroll = new ScrollView(this);
         scroll.setBackgroundColor(Ui.color("#F8FAFC"));
@@ -43,10 +48,12 @@ public class LinkListActivity extends Activity {
         back.setPadding(0, 0, 0, Ui.dp(this, 18));
         back.setOnClickListener(v -> finish());
         content.addView(back);
-        content.addView(Ui.text(this, category, 28, Ui.color("#0F172A"), true));
+        content.addView(Ui.text(this, "常用資源", 28, Ui.color("#0F172A"), true));
         TextView note = Ui.text(this, "資料來源：雲端資料庫清單｜離線時使用本地快取", 13, Ui.color("#64748B"), false);
-        note.setPadding(0, Ui.dp(this, 5), 0, Ui.dp(this, 12));
+        note.setPadding(0, Ui.dp(this, 5), 0, Ui.dp(this, 14));
         content.addView(note);
+
+        addCategoryTabs(content);
 
         LinearLayout syncRow = new LinearLayout(this);
         syncRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -117,9 +124,18 @@ public class LinkListActivity extends Activity {
     }
 
     private void renderLinks(List<LinkItem> all) {
+        currentItems = all;
+        renderCurrentCategory();
+    }
+
+    private void renderCurrentCategory() {
         listContainer.removeAllViews();
         int visible = 0;
-        for (LinkItem item : all) {
+        if (currentItems == null) {
+            addEmpty(listContainer, "正在讀取清單…");
+            return;
+        }
+        for (LinkItem item : currentItems) {
             if (category.equals(item.category)) {
                 addLink(listContainer, item);
                 visible++;
@@ -128,6 +144,52 @@ public class LinkListActivity extends Activity {
         if (visible == 0) {
             addEmpty(listContainer, "此分類目前沒有連結。\n請在雲端資料庫清單中新增資料，分類欄填寫「" + category + "」。");
         }
+    }
+
+    private void addCategoryTabs(LinearLayout parent) {
+        LinearLayout tabs = new LinearLayout(this);
+        tabs.setOrientation(LinearLayout.HORIZONTAL);
+        tabs.setPadding(Ui.dp(this, 3), Ui.dp(this, 3), Ui.dp(this, 3), Ui.dp(this, 3));
+        tabs.setBackground(Ui.background(Ui.color("#E2E8F0"), 12, this));
+
+        materialsTab = createTab("測試素材");
+        appsTab = createTab("常用程式");
+        tabs.addView(materialsTab, new LinearLayout.LayoutParams(0, Ui.dp(this, 42), 1));
+        tabs.addView(appsTab, new LinearLayout.LayoutParams(0, Ui.dp(this, 42), 1));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
+        params.bottomMargin = Ui.dp(this, 14);
+        parent.addView(tabs, params);
+
+        materialsTab.setOnClickListener(v -> selectCategory(CATEGORY_MATERIALS));
+        appsTab.setOnClickListener(v -> selectCategory(CATEGORY_APPS));
+        updateTabAppearance();
+    }
+
+    private TextView createTab(String label) {
+        TextView tab = Ui.text(this, label, 14, Ui.color("#64748B"), true);
+        tab.setGravity(Gravity.CENTER);
+        tab.setClickable(true);
+        tab.setFocusable(true);
+        return tab;
+    }
+
+    private void selectCategory(String selected) {
+        if (selected.equals(category)) return;
+        category = selected;
+        updateTabAppearance();
+        renderCurrentCategory();
+    }
+
+    private void updateTabAppearance() {
+        setTabAppearance(materialsTab, CATEGORY_MATERIALS.equals(category));
+        setTabAppearance(appsTab, CATEGORY_APPS.equals(category));
+    }
+
+    private void setTabAppearance(TextView tab, boolean selected) {
+        tab.setTextColor(Ui.color(selected ? "#FFFFFF" : "#64748B"));
+        tab.setBackground(Ui.background(
+                Ui.color(selected ? "#2563EB" : "#E2E8F0"), 9, this));
+        tab.setElevation(selected ? Ui.dp(this, 1) : 0);
     }
 
     private void showLoadError(String message) {

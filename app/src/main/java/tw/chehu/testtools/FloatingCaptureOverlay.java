@@ -9,6 +9,7 @@ import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.graphics.drawable.GradientDrawable;
 import android.media.AudioManager;
+import android.media.MediaActionSound;
 import android.media.ToneGenerator;
 import android.os.BatteryManager;
 import android.os.Build;
@@ -46,6 +47,8 @@ final class FloatingCaptureOverlay {
     private final CaptureListener listener;
     private final TextView view;
     private final WindowManager.LayoutParams params;
+    private final MediaActionSound captureSound;
+    private final ToneGenerator confirmationTone;
     private int batteryPercent = -1;
     private boolean attached;
     private float downRawX;
@@ -75,6 +78,8 @@ final class FloatingCaptureOverlay {
         this.listener = listener;
         preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         windowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+        captureSound = createCaptureSound();
+        confirmationTone = createConfirmationTone();
         view = new TextView(context);
         view.setTextColor(Color.WHITE);
         view.setTextSize(13);
@@ -110,6 +115,8 @@ final class FloatingCaptureOverlay {
         handler.removeCallbacksAndMessages(null);
         try { context.unregisterReceiver(batteryReceiver); } catch (IllegalArgumentException ignored) {}
         try { windowManager.removeView(view); } catch (IllegalArgumentException ignored) {}
+        if (captureSound != null) captureSound.release();
+        if (confirmationTone != null) confirmationTone.release();
         attached = false;
     }
 
@@ -136,14 +143,14 @@ final class FloatingCaptureOverlay {
 
     private void playSuccessFeedback() {
         if (preferences.getBoolean(KEY_FLASH_FEEDBACK, true)) showFlash();
-        if (preferences.getBoolean(KEY_VIBRATE_FEEDBACK, true)) vibrate();
-        if (preferences.getBoolean(KEY_SOUND_FEEDBACK, true)) playSound();
+        if (preferences.getBoolean(KEY_VIBRATE_FEEDBACK, false)) vibrate();
+        if (preferences.getBoolean(KEY_SOUND_FEEDBACK, false)) playSound();
     }
 
     private void showFlash() {
         View flash = new View(context);
         flash.setBackgroundColor(Color.WHITE);
-        flash.setAlpha(0.28f);
+        flash.setAlpha(0.92f);
         WindowManager.LayoutParams flashParams = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT,
@@ -154,9 +161,13 @@ final class FloatingCaptureOverlay {
                 PixelFormat.TRANSLUCENT);
         try {
             windowManager.addView(flash, flashParams);
-            flash.animate().alpha(0f).setDuration(190).withEndAction(() -> {
-                try { windowManager.removeView(flash); } catch (IllegalArgumentException ignored) {}
-            }).start();
+            flash.postDelayed(() -> flash.animate()
+                    .alpha(0f)
+                    .setDuration(260)
+                    .withEndAction(() -> {
+                        try { windowManager.removeView(flash); }
+                        catch (IllegalArgumentException ignored) {}
+                    }).start(), 65);
         } catch (RuntimeException ignored) {
             // 權限或視窗狀態改變時，略過閃光但仍保留其他成功回饋。
         }
@@ -171,17 +182,43 @@ final class FloatingCaptureOverlay {
             vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
         }
         if (vibrator != null && vibrator.hasVibrator()) {
-            vibrator.vibrate(VibrationEffect.createOneShot(35, VibrationEffect.DEFAULT_AMPLITUDE));
+            long[] timing = {0, 70, 55, 115};
+            if (vibrator.hasAmplitudeControl()) {
+                vibrator.vibrate(VibrationEffect.createWaveform(
+                        timing, new int[]{0, 210, 0, 255}, -1));
+            } else {
+                vibrator.vibrate(VibrationEffect.createWaveform(timing, -1));
+            }
         }
     }
 
     private void playSound() {
         try {
-            ToneGenerator tone = new ToneGenerator(AudioManager.STREAM_SYSTEM, 55);
-            tone.startTone(ToneGenerator.TONE_PROP_ACK, 90);
-            handler.postDelayed(tone::release, 250);
+            if (captureSound != null) captureSound.play(MediaActionSound.SHUTTER_CLICK);
+            if (confirmationTone != null) {
+                handler.postDelayed(() -> confirmationTone.startTone(
+                        ToneGenerator.TONE_PROP_ACK, 150), 70);
+            }
         } catch (RuntimeException ignored) {
             // 音訊服務不可用或系統靜音時不影響截圖結果。
+        }
+    }
+
+    private MediaActionSound createCaptureSound() {
+        try {
+            MediaActionSound sound = new MediaActionSound();
+            sound.load(MediaActionSound.SHUTTER_CLICK);
+            return sound;
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private ToneGenerator createConfirmationTone() {
+        try {
+            return new ToneGenerator(AudioManager.STREAM_NOTIFICATION, 50);
+        } catch (RuntimeException ignored) {
+            return null;
         }
     }
 

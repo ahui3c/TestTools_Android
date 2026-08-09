@@ -1,5 +1,6 @@
 package tw.chehu.testtools;
 
+import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.SharedPreferences;
 import android.os.Build;
@@ -98,6 +99,7 @@ public class BrightnessTestActivity extends Activity {
     private static final class Api30Fullscreen {
         private Api30Fullscreen() {}
 
+        @TargetApi(Build.VERSION_CODES.R)
         static void hide(Window window) {
             window.setDecorFitsSystemWindows(false);
             WindowInsetsController controller = window.getInsetsController();
