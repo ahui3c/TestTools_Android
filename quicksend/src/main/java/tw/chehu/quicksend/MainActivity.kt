@@ -70,6 +70,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -97,6 +98,33 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+private val TestToolsBlue = Color(0xFF2563EB)
+private val TestToolsPaleBlue = Color(0xFFE8F0FE)
+private val TestToolsBackground = Color(0xFFF8FAFC)
+private val TestToolsSurface = Color(0xFFFFFFFF)
+private val TestToolsMutedSurface = Color(0xFFF1F5F9)
+private val TestToolsBorder = Color(0xFFE2E8F0)
+private val TestToolsOutline = Color(0xFFCBD5E1)
+
+private val TestToolsLightColorScheme = lightColorScheme(
+    primary = TestToolsBlue,
+    onPrimary = Color.White,
+    primaryContainer = TestToolsPaleBlue,
+    onPrimaryContainer = Color(0xFF1E3A8A),
+    secondary = Color(0xFF0284C7),
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFE0F2FE),
+    onSecondaryContainer = Color(0xFF0C4A6E),
+    background = TestToolsBackground,
+    onBackground = Color(0xFF0F172A),
+    surface = TestToolsSurface,
+    onSurface = Color(0xFF0F172A),
+    surfaceVariant = TestToolsMutedSurface,
+    onSurfaceVariant = Color(0xFF64748B),
+    outline = TestToolsOutline,
+    outlineVariant = TestToolsBorder,
+)
+
 class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
 
@@ -115,7 +143,7 @@ class MainActivity : ComponentActivity() {
             nearbyPermission.launch(Manifest.permission.NEARBY_WIFI_DEVICES)
         }
         setContent {
-            MaterialTheme {
+            MaterialTheme(colorScheme = TestToolsLightColorScheme) {
                 QuickSendScreen(viewModel)
             }
         }
@@ -172,11 +200,11 @@ private fun QuickSendScreen(viewModel: MainViewModel) {
     val ready = sourcesReady && destinationReady
 
     Scaffold(
-        containerColor = Color(0xFFFCF9FF),
+        containerColor = TestToolsBackground,
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFFCFBFF),
+                    containerColor = TestToolsBackground,
                 ),
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -202,7 +230,7 @@ private fun QuickSendScreen(viewModel: MainViewModel) {
             )
         },
         bottomBar = {
-            Surface(color = Color(0xFFFCFBFF)) {
+            Surface(color = TestToolsBackground) {
                 Button(
                     onClick = {
                         if (Build.VERSION.SDK_INT >= 33 &&
@@ -404,8 +432,8 @@ private fun LargeActionCard(
             .heightIn(min = 126.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(20.dp),
-        color = Color(0xFFFFFCFF),
-        border = BorderStroke(1.dp, Color(0xFFE8E2EC)),
+        color = TestToolsSurface,
+        border = BorderStroke(1.dp, TestToolsBorder),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
@@ -414,14 +442,14 @@ private fun LargeActionCard(
             Surface(
                 modifier = Modifier.size(76.dp),
                 shape = CircleShape,
-                color = Color(0xFFF0EAF7),
+                color = TestToolsPaleBlue,
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         icon,
                         null,
                         modifier = Modifier.size(38.dp),
-                        tint = Color(0xFF6650A4),
+                        tint = TestToolsBlue,
                     )
                 }
             }
@@ -443,7 +471,7 @@ private fun LargeActionCard(
                 Icons.Default.ChevronRight,
                 "編輯",
                 modifier = Modifier.size(32.dp),
-                tint = Color(0xFF6650A4),
+                tint = TestToolsBlue,
             )
         }
     }
@@ -463,8 +491,8 @@ private fun BackupSettingsCard(
             .heightIn(min = 142.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(20.dp),
-        color = Color(0xFFFFFCFF),
-        border = BorderStroke(1.dp, Color(0xFFE8E2EC)),
+        color = TestToolsSurface,
+        border = BorderStroke(1.dp, TestToolsBorder),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
@@ -473,14 +501,14 @@ private fun BackupSettingsCard(
             Surface(
                 modifier = Modifier.size(76.dp),
                 shape = CircleShape,
-                color = Color(0xFFF0EAF7),
+                color = TestToolsPaleBlue,
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         Icons.Default.Tune,
                         null,
                         modifier = Modifier.size(38.dp),
-                        tint = Color(0xFF6650A4),
+                        tint = TestToolsBlue,
                     )
                 }
             }
@@ -508,7 +536,7 @@ private fun BackupSettingsCard(
                 Icons.Default.ChevronRight,
                 "編輯備份設定",
                 modifier = Modifier.size(32.dp),
-                tint = Color(0xFF6650A4),
+                tint = TestToolsBlue,
             )
         }
     }
@@ -518,7 +546,7 @@ private fun BackupSettingsCard(
 private fun MiniTag(text: String) {
     Surface(
         shape = RoundedCornerShape(10.dp),
-        color = Color(0xFFF0ECF4),
+        color = TestToolsMutedSurface,
     ) {
         Text(
             text,
@@ -542,8 +570,8 @@ private fun DestinationCard(
             .fillMaxWidth()
             .heightIn(min = 190.dp),
         shape = RoundedCornerShape(20.dp),
-        color = Color(0xFFFFFCFF),
-        border = BorderStroke(1.dp, Color(0xFFE8E2EC)),
+        color = TestToolsSurface,
+        border = BorderStroke(1.dp, TestToolsBorder),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 18.dp),
@@ -552,14 +580,14 @@ private fun DestinationCard(
             Surface(
                 modifier = Modifier.size(76.dp),
                 shape = CircleShape,
-                color = Color(0xFFF0EAF7),
+                color = TestToolsPaleBlue,
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         Icons.Default.Devices,
                         null,
                         modifier = Modifier.size(38.dp),
-                        tint = Color(0xFF6650A4),
+                        tint = TestToolsBlue,
                     )
                 }
             }
@@ -611,7 +639,7 @@ private fun DestinationCard(
                             Icons.Default.Devices
                         },
                         null,
-                        tint = Color(0xFF6650A4),
+                        tint = TestToolsBlue,
                     )
                     Spacer(Modifier.width(10.dp))
                     Column(Modifier.weight(1f)) {
@@ -646,7 +674,7 @@ private fun DestinationCard(
                     Icon(
                         Icons.Default.ChevronRight,
                         "選擇目的地",
-                        tint = Color(0xFF6650A4),
+                        tint = TestToolsBlue,
                     )
                 }
             }
@@ -667,10 +695,10 @@ private fun DestinationSegment(
             .height(46.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
-        color = if (selected) Color(0xFFEDE4FF) else Color.Transparent,
+        color = if (selected) TestToolsPaleBlue else Color.Transparent,
         border = BorderStroke(
             1.dp,
-            if (selected) Color(0xFF6650A4) else Color(0xFFC9C2CE),
+            if (selected) TestToolsBlue else TestToolsOutline,
         ),
     ) {
         Row(
@@ -678,7 +706,7 @@ private fun DestinationSegment(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
         ) {
-            Icon(icon, null, modifier = Modifier.size(18.dp), tint = Color(0xFF6650A4))
+            Icon(icon, null, modifier = Modifier.size(18.dp), tint = TestToolsBlue)
             Spacer(Modifier.width(6.dp))
             Text(
                 text,
@@ -747,7 +775,7 @@ private fun CompactProgress(
                 },
                 null,
                 modifier = Modifier.size(30.dp),
-                tint = if (complete) Color(0xFF2E7D32) else Color(0xFF6650A4),
+                tint = if (complete) Color(0xFF2E7D32) else TestToolsBlue,
             )
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
