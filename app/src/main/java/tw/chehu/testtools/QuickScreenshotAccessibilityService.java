@@ -12,6 +12,7 @@ import android.net.Uri;
 import android.view.Display;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
+import android.widget.Toast;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -67,9 +68,26 @@ public class QuickScreenshotAccessibilityService extends AccessibilityService {
                 return openActivity(new Intent(this, MainActivity.class));
             case FloatingCaptureOverlay.ACTION_QUICK_BACKUP:
                 return openActivity(new Intent(this, tw.chehu.quicksend.MainActivity.class));
+            case FloatingCaptureOverlay.ACTION_TOGGLE_TORCH:
+                return handleQuickAction(SystemQuickActions.toggleTorch(this));
+            case FloatingCaptureOverlay.ACTION_NOTIFICATIONS:
+                boolean opened = performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS);
+                if (!opened) Toast.makeText(this, "無法下拉通知面板", Toast.LENGTH_SHORT).show();
+                return opened;
+            case FloatingCaptureOverlay.ACTION_OPEN_SELECTED_APP:
+                return handleQuickAction(SystemQuickActions.openSelectedApp(this));
+            case FloatingCaptureOverlay.ACTION_RUN_APP_ACTION:
+                return handleQuickAction(SystemQuickActions.runConfiguredAppAction(this));
+            case FloatingCaptureOverlay.ACTION_TOGGLE_MUTE:
+                return handleQuickAction(SystemQuickActions.toggleMute(this));
             default:
                 return false;
         }
+    }
+
+    private boolean handleQuickAction(SystemQuickActions.Result result) {
+        Toast.makeText(this, result.message, Toast.LENGTH_SHORT).show();
+        return result.success;
     }
 
     private boolean openActivity(Intent intent) {

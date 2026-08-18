@@ -10,6 +10,7 @@ import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.InsetDrawable;
 import android.media.AudioManager;
 import android.media.MediaActionSound;
 import android.media.ToneGenerator;
@@ -42,9 +43,17 @@ final class FloatingCaptureOverlay {
     static final int ACTION_HOME = 5;
     static final int ACTION_TESTTOOLS_HOME = 6;
     static final int ACTION_QUICK_BACKUP = 7;
+    static final int ACTION_HIDE_TO_EDGE = 8;
+    static final int ACTION_TOGGLE_TORCH = 9;
+    static final int ACTION_NOTIFICATIONS = 10;
+    static final int ACTION_OPEN_SELECTED_APP = 11;
+    static final int ACTION_RUN_APP_ACTION = 12;
+    static final int ACTION_TOGGLE_MUTE = 13;
     static final String[] ACTION_LABELS = {
             "未指定", "抓圖儲存", "抓圖儲存並分享", "返回（Back）",
-            "多工按鍵", "返回系統首頁", "開啟 TestTools 首頁", "開啟影音快速備份"
+            "多工按鍵", "返回系統首頁", "開啟 TestTools 首頁", "開啟影音快速備份",
+            "隱藏至螢幕側邊", "開關補光燈／手電筒", "下拉通知面板",
+            "開啟指定應用程式", "執行指定程式動作", "快速切換系統靜音"
     };
 
     static final String PREFS = "floating_screenshot";
@@ -63,14 +72,20 @@ final class FloatingCaptureOverlay {
     static final String KEY_ACTION_SWIPE_DOWN = "action_swipe_down";
     static final String KEY_ACTION_SWIPE_LEFT = "action_swipe_left";
     static final String KEY_ACTION_SWIPE_RIGHT = "action_swipe_right";
+    static final String KEY_EDGE_HIDDEN = "edge_hidden";
     static final int DEFAULT_BUTTON_COLOR = 0xFF2563EB;
     static final int DEFAULT_BUTTON_OPACITY = 90;
     static final int DEFAULT_COMPACT_SIZE_PERCENT = 60;
     static final int MIN_COMPACT_SIZE_PERCENT = 40;
     static final int MAX_COMPACT_SIZE_PERCENT = 150;
     private static final int BASE_COMPACT_SIZE_DP = 56;
+    private static final int EDGE_TOUCH_WIDTH_DP = 18;
+    private static final int EDGE_LINE_WIDTH_DP = 5;
+    private static final int EDGE_LINE_HEIGHT_DP = 42;
     private static final String KEY_X = "overlay_x";
     private static final String KEY_Y = "overlay_y";
+    private static final String KEY_EDGE_RIGHT = "edge_right";
+    private static final String KEY_EDGE_Y = "edge_y";
 
     private final Context context;
     private final WindowManager windowManager;
@@ -92,6 +107,8 @@ final class FloatingCaptureOverlay {
     private boolean positionMoveMode;
     private boolean pendingSingleTap;
     private boolean secondTapCandidate;
+    private boolean edgeHidden;
+    private boolean edgeRight;
 
     private final Runnable longPress;
     private final Runnable singleTap;
@@ -122,6 +139,7 @@ final class FloatingCaptureOverlay {
             performConfiguredAction(KEY_ACTION_TAP, ACTION_CAPTURE);
         };
         preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        SystemQuickActions.initialize(context);
         windowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
         captureSound = createCaptureSound();
         confirmationTone = createConfirmationTone();
@@ -157,6 +175,9 @@ final class FloatingCaptureOverlay {
         params.gravity = Gravity.TOP | Gravity.START;
         params.x = preferences.getInt(KEY_X, Ui.dp(context, 12));
         params.y = preferences.getInt(KEY_Y, Ui.dp(context, 180));
+        edgeHidden = preferences.getBoolean(KEY_EDGE_HIDDEN, false);
+        edgeRight = preferences.getBoolean(KEY_EDGE_RIGHT, false);
+        if (edgeHidden) applyEdgeHandleAppearance();
     }
 
     void show() {
@@ -180,12 +201,15 @@ final class FloatingCaptureOverlay {
     }
 
     void setVisible(boolean visible) {
-        if (attached) view.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
+        if (!attached) return;
+        view.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
+        if (visible && edgeHidden) applyEdgeHandleAppearance();
     }
 
     void showResult(String message, boolean success) {
         if (!attached) return;
         if (success) playSuccessFeedback();
+        if (edgeHidden) return;
         setVisible(true);
         updateText(message);
         view.setBackground(background(success ? "#E616A34A" : "#E6DC2626"));
@@ -282,11 +306,18 @@ final class FloatingCaptureOverlay {
     }
 
     void refreshOptions() {
-        view.setBackground(buttonBackground());
-        updateText(null);
+        if (edgeHidden) applyEdgeHandleAppearance();
+        else {
+            view.setBackground(buttonBackground());
+            updateText(null);
+        }
     }
 
     private void updateText(String temporary) {
+        if (edgeHidden) {
+            applyEdgeHandleAppearance();
+            return;
+        }
         if (temporary != null) {
             setCompactMode(false);
             view.setTextColor(Color.WHITE);
@@ -329,6 +360,12 @@ final class FloatingCaptureOverlay {
                 if (returnAnimator != null) returnAnimator.cancel();
                 downRawX = event.getRawX();
                 downRawY = event.getRawY();
+                if (edgeHidden) {
+                    moved = false;
+                    view.animate().cancel();
+                    view.animate().alpha(0.78f).setDuration(80).start();
+                    return true;
+                }
                 downWindowX = params.x;
                 downWindowY = params.y;
                 moved = false;
@@ -344,6 +381,12 @@ final class FloatingCaptureOverlay {
             case MotionEvent.ACTION_MOVE:
                 float dx = event.getRawX() - downRawX;
                 float dy = event.getRawY() - downRawY;
+                if (edgeHidden) {
+                    if (Math.hypot(dx, dy) > ViewConfiguration.get(context).getScaledTouchSlop()) {
+                        moved = true;
+                    }
+                    return true;
+                }
                 if (positionMoveMode) {
                     params.x = downWindowX + Math.round(dx);
                     params.y = downWindowY + Math.round(dy);
@@ -361,6 +404,17 @@ final class FloatingCaptureOverlay {
                 if (attached) windowManager.updateViewLayout(view, params);
                 return true;
             case MotionEvent.ACTION_UP:
+                if (edgeHidden) {
+                    float hiddenDx = event.getRawX() - downRawX;
+                    float hiddenDy = event.getRawY() - downRawY;
+                    view.animate().cancel();
+                    view.setAlpha(0.5f);
+                    if (!moved && Math.hypot(hiddenDx, hiddenDy)
+                            <= ViewConfiguration.get(context).getScaledTouchSlop()) {
+                        restoreFromEdge();
+                    }
+                    return true;
+                }
                 handler.removeCallbacks(longPress);
                 float upDx = event.getRawX() - downRawX;
                 float upDy = event.getRawY() - downRawY;
@@ -387,6 +441,12 @@ final class FloatingCaptureOverlay {
                 }
                 return true;
             case MotionEvent.ACTION_CANCEL:
+                if (edgeHidden) {
+                    moved = false;
+                    view.animate().cancel();
+                    view.setAlpha(0.5f);
+                    return true;
+                }
                 handler.removeCallbacks(longPress);
                 secondTapCandidate = false;
                 positionMoveMode = false;
@@ -410,7 +470,11 @@ final class FloatingCaptureOverlay {
 
     private void performConfiguredAction(String key, int defaultAction) {
         int action = preferences.getInt(key, defaultAction);
-        if (action <= ACTION_NONE || action > ACTION_QUICK_BACKUP) return;
+        if (action <= ACTION_NONE || action > ACTION_TOGGLE_MUTE) return;
+        if (action == ACTION_HIDE_TO_EDGE) {
+            hideToNearestEdge();
+            return;
+        }
         if (listener.onActionRequested(action)) {
             vibrateTrigger(28, 170);
             view.animate().cancel();
@@ -448,6 +512,106 @@ final class FloatingCaptureOverlay {
         int viewHeight = Math.max(view.getHeight(), params.height > 0 ? params.height : 0);
         params.x = Math.max(0, Math.min(params.x, Math.max(0, metrics.widthPixels - viewWidth)));
         params.y = Math.max(0, Math.min(params.y, Math.max(0, metrics.heightPixels - viewHeight)));
+    }
+
+    private void hideToNearestEdge() {
+        if (!attached || edgeHidden) return;
+        handler.removeCallbacks(longPress);
+        handler.removeCallbacks(singleTap);
+        pendingSingleTap = false;
+        secondTapCandidate = false;
+        positionMoveMode = false;
+        if (returnAnimator != null) returnAnimator.cancel();
+
+        android.util.DisplayMetrics metrics = context.getResources().getDisplayMetrics();
+        int normalX = preferences.getInt(KEY_X, params.x);
+        int normalY = preferences.getInt(KEY_Y, params.y);
+        int normalWidth = Math.max(view.getWidth(), params.width > 0 ? params.width : 0);
+        edgeRight = normalX + normalWidth / 2 >= metrics.widthPixels / 2;
+        int edgeY = Math.max(0, Math.min(normalY,
+                Math.max(0, metrics.heightPixels - Ui.dp(context, EDGE_LINE_HEIGHT_DP))));
+        edgeHidden = true;
+        preferences.edit()
+                .putBoolean(KEY_EDGE_HIDDEN, true)
+                .putBoolean(KEY_EDGE_RIGHT, edgeRight)
+                .putInt(KEY_EDGE_Y, edgeY)
+                .apply();
+
+        view.animate().cancel();
+        view.animate()
+                .alpha(0.15f)
+                .scaleX(0.45f)
+                .scaleY(0.45f)
+                .setDuration(120)
+                .withEndAction(() -> {
+                    if (!attached || !edgeHidden) return;
+                    applyEdgeHandleAppearance();
+                    view.setScaleX(0.65f);
+                    view.setScaleY(0.65f);
+                    view.animate().scaleX(1f).scaleY(1f).alpha(0.5f)
+                            .setInterpolator(new OvershootInterpolator(1.8f))
+                            .setDuration(220).start();
+                })
+                .start();
+        vibrateTrigger(24, 125);
+    }
+
+    private void restoreFromEdge() {
+        if (!attached || !edgeHidden) return;
+        edgeHidden = false;
+        preferences.edit().putBoolean(KEY_EDGE_HIDDEN, false).apply();
+        params.x = preferences.getInt(KEY_X, Ui.dp(context, 12));
+        params.y = preferences.getInt(KEY_Y, Ui.dp(context, 180));
+        view.animate().cancel();
+        view.setAlpha(0.45f);
+        view.setScaleX(0.7f);
+        view.setScaleY(0.7f);
+        updateText(null);
+        clampPosition();
+        try { windowManager.updateViewLayout(view, params); }
+        catch (IllegalArgumentException ignored) {}
+        view.animate().alpha(1f).scaleX(1f).scaleY(1f)
+                .setInterpolator(new OvershootInterpolator(2.2f))
+                .setDuration(280).start();
+        vibrateTrigger(24, 135);
+    }
+
+    private void applyEdgeHandleAppearance() {
+        edgeRight = preferences.getBoolean(KEY_EDGE_RIGHT, edgeRight);
+        android.util.DisplayMetrics metrics = context.getResources().getDisplayMetrics();
+        int touchWidth = Ui.dp(context, EDGE_TOUCH_WIDTH_DP);
+        int lineHeight = Ui.dp(context, EDGE_LINE_HEIGHT_DP);
+        params.width = touchWidth;
+        params.height = lineHeight;
+        params.x = edgeRight ? Math.max(0, metrics.widthPixels - touchWidth) : 0;
+        params.y = Math.max(0, Math.min(
+                preferences.getInt(KEY_EDGE_Y, preferences.getInt(KEY_Y, Ui.dp(context, 180))),
+                Math.max(0, metrics.heightPixels - lineHeight)));
+        view.setText("");
+        view.setTextColor(Color.TRANSPARENT);
+        view.setPadding(0, 0, 0, 0);
+        view.setBackground(edgeHandleBackground());
+        view.setAlpha(0.5f);
+        view.setScaleX(1f);
+        view.setScaleY(1f);
+        if (attached) {
+            try { windowManager.updateViewLayout(view, params); }
+            catch (IllegalArgumentException ignored) {}
+        }
+    }
+
+    private Drawable edgeHandleBackground() {
+        int rgb = preferences.getInt(KEY_BUTTON_COLOR, DEFAULT_BUTTON_COLOR) & 0x00FFFFFF;
+        GradientDrawable line = new GradientDrawable();
+        line.setColor(0xFF000000 | rgb);
+        line.setCornerRadius(Ui.dp(context, EDGE_LINE_WIDTH_DP) / 2f);
+        if (rgb == 0x00FFFFFF) {
+            line.setStroke(Ui.dp(context, 1), Color.parseColor("#660F172A"));
+        }
+        int remaining = Ui.dp(context, EDGE_TOUCH_WIDTH_DP - EDGE_LINE_WIDTH_DP);
+        return edgeRight
+                ? new InsetDrawable(line, remaining, 0, 0, 0)
+                : new InsetDrawable(line, 0, 0, remaining, 0);
     }
 
     private void vibrateTrigger(int durationMs, int amplitude) {

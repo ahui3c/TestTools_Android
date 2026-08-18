@@ -60,7 +60,7 @@ public class ScreenshotSettingsActivity extends Activity {
         content.addView(back);
         content.addView(Ui.text(this, "浮動快速截圖", 28, Ui.color("#0F172A"), true));
         TextView intro = Ui.text(this,
-                "單擊、雙擊及上下左右滑動都可指定功能；滑動時會有阻尼與回彈動畫。要移動按鈕位置，請先長按不放，感覺到震動後再拖曳。截圖會保存至系統 Screenshots 資料夾。",
+                "單擊、雙擊及上下左右滑動都可指定功能；可將任一手勢設為隱藏，按鈕會收納成最靠近螢幕側邊的半透明細線，點一下細線即可恢復。要移動按鈕位置，請先長按不放，感覺到震動後再拖曳。",
                 14, Ui.color("#64748B"), false);
         intro.setPadding(0, Ui.dp(this, 7), 0, Ui.dp(this, 18));
         content.addView(intro);
@@ -94,6 +94,13 @@ public class ScreenshotSettingsActivity extends Activity {
                 FloatingCaptureOverlay.ACTION_NONE);
         addGestureSelector(gestures, "向右滑動", FloatingCaptureOverlay.KEY_ACTION_SWIPE_RIGHT,
                 FloatingCaptureOverlay.ACTION_NONE);
+        Button quickActionSettings = actionButton("設定指定 App、程式動作與系統權限",
+                "#E8F0FE", Ui.color("#1D4ED8"));
+        LinearLayout.LayoutParams quickActionParams = buttonParams();
+        quickActionParams.topMargin = Ui.dp(this, 8);
+        gestures.addView(quickActionSettings, quickActionParams);
+        quickActionSettings.setOnClickListener(v -> startActivity(
+                new Intent(this, QuickActionSettingsActivity.class)));
         addPanel(content, gestures);
 
         CheckBox showTime = option("浮動按鈕顯示現在時間",
@@ -357,6 +364,8 @@ public class ScreenshotSettingsActivity extends Activity {
             status.setText("狀態：浮動按鈕已停止");
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !isAccessibilityEnabled()) {
             status.setText("狀態：等待開啟無障礙服務");
+        } else if (preferences.getBoolean(FloatingCaptureOverlay.KEY_EDGE_HIDDEN, false)) {
+            status.setText("狀態：浮動按鈕已收納於螢幕側邊");
         } else {
             status.setText("狀態：浮動按鈕已啟用");
         }
@@ -435,7 +444,7 @@ public class ScreenshotSettingsActivity extends Activity {
                 FloatingCaptureOverlay.ACTION_LABELS));
         int selected = preferences.getInt(key, defaultAction);
         if (selected < FloatingCaptureOverlay.ACTION_NONE ||
-                selected > FloatingCaptureOverlay.ACTION_QUICK_BACKUP) selected = defaultAction;
+                selected > FloatingCaptureOverlay.ACTION_TOGGLE_MUTE) selected = defaultAction;
         selector.setSelection(selected);
         selector.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(AdapterView<?> parentView, android.view.View view,
