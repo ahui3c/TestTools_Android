@@ -1,5 +1,6 @@
 package tw.chehu.testtools;
 
+import android.animation.ValueAnimator;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -7,6 +8,7 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.media.AudioManager;
 import android.media.MediaActionSound;
@@ -21,14 +23,29 @@ import android.os.VibratorManager;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.WindowManager;
+import android.view.animation.OvershootInterpolator;
 import android.widget.TextView;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 
 final class FloatingCaptureOverlay {
-    interface CaptureListener { void onCaptureRequested(); }
+    interface ActionListener { boolean onActionRequested(int action); }
+
+    static final int ACTION_NONE = 0;
+    static final int ACTION_CAPTURE = 1;
+    static final int ACTION_CAPTURE_SHARE = 2;
+    static final int ACTION_BACK = 3;
+    static final int ACTION_RECENTS = 4;
+    static final int ACTION_HOME = 5;
+    static final int ACTION_TESTTOOLS_HOME = 6;
+    static final int ACTION_QUICK_BACKUP = 7;
+    static final String[] ACTION_LABELS = {
+            "未指定", "抓圖儲存", "抓圖儲存並分享", "返回（Back）",
+            "多工按鍵", "返回系統首頁", "開啟 TestTools 首頁", "開啟影音快速備份"
+    };
 
     static final String PREFS = "floating_screenshot";
     static final String KEY_ENABLED = "overlay_enabled";
@@ -37,6 +54,21 @@ final class FloatingCaptureOverlay {
     static final String KEY_FLASH_FEEDBACK = "flash_feedback";
     static final String KEY_VIBRATE_FEEDBACK = "vibrate_feedback";
     static final String KEY_SOUND_FEEDBACK = "sound_feedback";
+    static final String KEY_BUTTON_COLOR = "button_color";
+    static final String KEY_BUTTON_OPACITY = "button_opacity";
+    static final String KEY_COMPACT_SIZE_PERCENT = "compact_size_percent";
+    static final String KEY_ACTION_TAP = "action_tap";
+    static final String KEY_ACTION_DOUBLE_TAP = "action_double_tap";
+    static final String KEY_ACTION_SWIPE_UP = "action_swipe_up";
+    static final String KEY_ACTION_SWIPE_DOWN = "action_swipe_down";
+    static final String KEY_ACTION_SWIPE_LEFT = "action_swipe_left";
+    static final String KEY_ACTION_SWIPE_RIGHT = "action_swipe_right";
+    static final int DEFAULT_BUTTON_COLOR = 0xFF2563EB;
+    static final int DEFAULT_BUTTON_OPACITY = 90;
+    static final int DEFAULT_COMPACT_SIZE_PERCENT = 60;
+    static final int MIN_COMPACT_SIZE_PERCENT = 40;
+    static final int MAX_COMPACT_SIZE_PERCENT = 150;
+    private static final int BASE_COMPACT_SIZE_DP = 56;
     private static final String KEY_X = "overlay_x";
     private static final String KEY_Y = "overlay_y";
 
@@ -44,7 +76,7 @@ final class FloatingCaptureOverlay {
     private final WindowManager windowManager;
     private final SharedPreferences preferences;
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private final CaptureListener listener;
+    private final ActionListener listener;
     private final TextView view;
     private final WindowManager.LayoutParams params;
     private final MediaActionSound captureSound;
@@ -56,6 +88,14 @@ final class FloatingCaptureOverlay {
     private int downWindowX;
     private int downWindowY;
     private boolean moved;
+    private boolean longPressTriggered;
+    private boolean positionMoveMode;
+    private boolean pendingSingleTap;
+    private boolean secondTapCandidate;
+
+    private final Runnable longPress;
+    private final Runnable singleTap;
+    private ValueAnimator returnAnimator;
 
     private final Runnable clockTick = new Runnable() {
         @Override public void run() {
@@ -73,9 +113,14 @@ final class FloatingCaptureOverlay {
         }
     };
 
-    FloatingCaptureOverlay(Context context, int windowType, CaptureListener listener) {
+    FloatingCaptureOverlay(Context context, int windowType, ActionListener listener) {
         this.context = context;
         this.listener = listener;
+        singleTap = () -> {
+            if (!pendingSingleTap || !attached) return;
+            pendingSingleTap = false;
+            performConfiguredAction(KEY_ACTION_TAP, ACTION_CAPTURE);
+        };
         preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         windowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
         captureSound = createCaptureSound();
@@ -86,8 +131,21 @@ final class FloatingCaptureOverlay {
         view.setGravity(Gravity.CENTER);
         view.setElevation(Ui.dp(context, 8));
         view.setPadding(Ui.dp(context, 12), Ui.dp(context, 9), Ui.dp(context, 12), Ui.dp(context, 9));
-        view.setBackground(background("#E62563EB"));
+        view.setBackground(buttonBackground());
         view.setOnTouchListener(this::onTouch);
+        longPress = () -> {
+            if (!moved && attached) {
+                handler.removeCallbacks(singleTap);
+                pendingSingleTap = false;
+                secondTapCandidate = false;
+                longPressTriggered = true;
+                positionMoveMode = true;
+                view.animate().cancel();
+                view.animate().scaleX(1.12f).scaleY(1.12f)
+                        .setDuration(130).start();
+                vibrateTrigger(35, 150);
+            }
+        };
 
         params = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
@@ -113,6 +171,7 @@ final class FloatingCaptureOverlay {
     void remove() {
         if (!attached) return;
         handler.removeCallbacksAndMessages(null);
+        if (returnAnimator != null) returnAnimator.cancel();
         try { context.unregisterReceiver(batteryReceiver); } catch (IllegalArgumentException ignored) {}
         try { windowManager.removeView(view); } catch (IllegalArgumentException ignored) {}
         if (captureSound != null) captureSound.release();
@@ -128,15 +187,15 @@ final class FloatingCaptureOverlay {
         if (!attached) return;
         if (success) playSuccessFeedback();
         setVisible(true);
-        view.setBackground(background(success ? "#E616A34A" : "#E6DC2626"));
         updateText(message);
+        view.setBackground(background(success ? "#E616A34A" : "#E6DC2626"));
         if (success) {
             view.setScaleX(0.82f);
             view.setScaleY(0.82f);
             view.animate().scaleX(1f).scaleY(1f).setDuration(180).start();
         }
         handler.postDelayed(() -> {
-            view.setBackground(background("#E62563EB"));
+            view.setBackground(buttonBackground());
             updateText(null);
         }, 900);
     }
@@ -223,47 +282,188 @@ final class FloatingCaptureOverlay {
     }
 
     void refreshOptions() {
+        view.setBackground(buttonBackground());
         updateText(null);
     }
 
     private void updateText(String temporary) {
         if (temporary != null) {
+            setCompactMode(false);
+            view.setTextColor(Color.WHITE);
             view.setText(temporary);
             return;
         }
-        StringBuilder text = new StringBuilder("截圖");
-        if (preferences.getBoolean(KEY_SHOW_TIME, true)) {
-            text.append("  ").append(new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date()));
+        boolean showTime = preferences.getBoolean(KEY_SHOW_TIME, true);
+        boolean showBattery = preferences.getBoolean(KEY_SHOW_BATTERY, true);
+        boolean compact = !showTime && !showBattery;
+        setCompactMode(compact);
+        StringBuilder text = new StringBuilder();
+        if (showTime) {
+            text.append(new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date()));
         }
-        if (preferences.getBoolean(KEY_SHOW_BATTERY, true)) {
-            text.append("\n電量 ").append(batteryPercent < 0 ? "--" : batteryPercent).append('%');
+        if (showBattery) {
+            if (text.length() > 0) text.append('\n');
+            text.append(batteryPercent < 0 ? "--" : batteryPercent).append('%');
         }
+        view.setTextColor(buttonTextColor());
         view.setText(text.toString());
+    }
+
+    private void setCompactMode(boolean compact) {
+        int horizontal = compact ? 0 : Ui.dp(context, 12);
+        int vertical = compact ? 0 : Ui.dp(context, 9);
+        view.setPadding(horizontal, vertical, horizontal, vertical);
+        int compactSize = compactSizePx();
+        params.width = compact ? compactSize : WindowManager.LayoutParams.WRAP_CONTENT;
+        params.height = compact ? compactSize : WindowManager.LayoutParams.WRAP_CONTENT;
+        view.setBackground(buttonBackground());
+        if (attached) {
+            try { windowManager.updateViewLayout(view, params); }
+            catch (IllegalArgumentException ignored) {}
+        }
     }
 
     private boolean onTouch(View ignored, MotionEvent event) {
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
+                if (returnAnimator != null) returnAnimator.cancel();
                 downRawX = event.getRawX();
                 downRawY = event.getRawY();
                 downWindowX = params.x;
                 downWindowY = params.y;
                 moved = false;
+                longPressTriggered = false;
+                positionMoveMode = false;
+                secondTapCandidate = pendingSingleTap;
+                if (secondTapCandidate) {
+                    handler.removeCallbacks(singleTap);
+                    pendingSingleTap = false;
+                }
+                handler.postDelayed(longPress, ViewConfiguration.getLongPressTimeout());
                 return true;
             case MotionEvent.ACTION_MOVE:
                 float dx = event.getRawX() - downRawX;
                 float dy = event.getRawY() - downRawY;
-                if (Math.hypot(dx, dy) > Ui.dp(context, 8)) moved = true;
-                params.x = downWindowX + Math.round(dx);
-                params.y = downWindowY + Math.round(dy);
+                if (positionMoveMode) {
+                    params.x = downWindowX + Math.round(dx);
+                    params.y = downWindowY + Math.round(dy);
+                    clampPosition();
+                    if (attached) windowManager.updateViewLayout(view, params);
+                    return true;
+                }
+                if (Math.hypot(dx, dy) > Ui.dp(context, 8)) {
+                    moved = true;
+                    handler.removeCallbacks(longPress);
+                    if (secondTapCandidate) secondTapCandidate = false;
+                }
+                params.x = downWindowX + Math.round(dx * 0.42f);
+                params.y = downWindowY + Math.round(dy * 0.42f);
                 if (attached) windowManager.updateViewLayout(view, params);
                 return true;
             case MotionEvent.ACTION_UP:
-                preferences.edit().putInt(KEY_X, params.x).putInt(KEY_Y, params.y).apply();
-                if (!moved) listener.onCaptureRequested();
+                handler.removeCallbacks(longPress);
+                float upDx = event.getRawX() - downRawX;
+                float upDy = event.getRawY() - downRawY;
+                if (positionMoveMode) {
+                    positionMoveMode = false;
+                    clampPosition();
+                    preferences.edit().putInt(KEY_X, params.x).putInt(KEY_Y, params.y).apply();
+                    view.animate().scaleX(1f).scaleY(1f)
+                            .setInterpolator(new OvershootInterpolator(2f))
+                            .setDuration(260).start();
+                    vibrateTrigger(25, 120);
+                } else if (Math.hypot(upDx, upDy) >= Ui.dp(context, 42)) {
+                    animateWindowBack();
+                    performSwipe(upDx, upDy);
+                } else if (!longPressTriggered) {
+                    animateWindowBack();
+                    if (secondTapCandidate) {
+                        secondTapCandidate = false;
+                        performConfiguredAction(KEY_ACTION_DOUBLE_TAP, ACTION_NONE);
+                    } else {
+                        pendingSingleTap = true;
+                        handler.postDelayed(singleTap, ViewConfiguration.getDoubleTapTimeout());
+                    }
+                }
+                return true;
+            case MotionEvent.ACTION_CANCEL:
+                handler.removeCallbacks(longPress);
+                secondTapCandidate = false;
+                positionMoveMode = false;
+                animateWindowBack();
+                view.animate().scaleX(1f).scaleY(1f).setDuration(150).start();
                 return true;
             default:
                 return false;
+        }
+    }
+
+    private void performSwipe(float dx, float dy) {
+        if (Math.abs(dy) >= Math.abs(dx)) {
+            performConfiguredAction(dy < 0 ? KEY_ACTION_SWIPE_UP : KEY_ACTION_SWIPE_DOWN,
+                    dy < 0 ? ACTION_CAPTURE_SHARE : ACTION_NONE);
+        } else {
+            performConfiguredAction(dx < 0 ? KEY_ACTION_SWIPE_LEFT : KEY_ACTION_SWIPE_RIGHT,
+                    ACTION_NONE);
+        }
+    }
+
+    private void performConfiguredAction(String key, int defaultAction) {
+        int action = preferences.getInt(key, defaultAction);
+        if (action <= ACTION_NONE || action > ACTION_QUICK_BACKUP) return;
+        if (listener.onActionRequested(action)) {
+            vibrateTrigger(28, 170);
+            view.animate().cancel();
+            view.setScaleX(0.86f);
+            view.setScaleY(0.86f);
+            view.animate().scaleX(1f).scaleY(1f)
+                    .setInterpolator(new OvershootInterpolator(2.5f))
+                    .setDuration(280).start();
+        }
+    }
+
+    private void animateWindowBack() {
+        if (!attached || (params.x == downWindowX && params.y == downWindowY)) return;
+        if (returnAnimator != null) returnAnimator.cancel();
+        int startX = params.x;
+        int startY = params.y;
+        returnAnimator = ValueAnimator.ofFloat(0f, 1f);
+        returnAnimator.setDuration(360);
+        returnAnimator.setInterpolator(new OvershootInterpolator(2.2f));
+        returnAnimator.addUpdateListener(animation -> {
+            float value = (float) animation.getAnimatedValue();
+            params.x = startX + Math.round((downWindowX - startX) * value);
+            params.y = startY + Math.round((downWindowY - startY) * value);
+            if (attached) {
+                try { windowManager.updateViewLayout(view, params); }
+                catch (IllegalArgumentException ignored) {}
+            }
+        });
+        returnAnimator.start();
+    }
+
+    private void clampPosition() {
+        android.util.DisplayMetrics metrics = context.getResources().getDisplayMetrics();
+        int viewWidth = Math.max(view.getWidth(), params.width > 0 ? params.width : 0);
+        int viewHeight = Math.max(view.getHeight(), params.height > 0 ? params.height : 0);
+        params.x = Math.max(0, Math.min(params.x, Math.max(0, metrics.widthPixels - viewWidth)));
+        params.y = Math.max(0, Math.min(params.y, Math.max(0, metrics.heightPixels - viewHeight)));
+    }
+
+    private void vibrateTrigger(int durationMs, int amplitude) {
+        Vibrator vibrator;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            VibratorManager manager = (VibratorManager) context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE);
+            vibrator = manager == null ? null : manager.getDefaultVibrator();
+        } else {
+            vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
+        }
+        if (vibrator == null || !vibrator.hasVibrator()) return;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(VibrationEffect.createOneShot(durationMs,
+                    vibrator.hasAmplitudeControl() ? amplitude : VibrationEffect.DEFAULT_AMPLITUDE));
+        } else {
+            vibrator.vibrate(durationMs);
         }
     }
 
@@ -273,5 +473,33 @@ final class FloatingCaptureOverlay {
         drawable.setCornerRadius(Ui.dp(context, 18));
         drawable.setStroke(Ui.dp(context, 1), Color.parseColor("#66FFFFFF"));
         return drawable;
+    }
+
+    private Drawable buttonBackground() {
+        int rgb = preferences.getInt(KEY_BUTTON_COLOR, DEFAULT_BUTTON_COLOR) & 0x00FFFFFF;
+        int opacity = Math.max(20, Math.min(100,
+                preferences.getInt(KEY_BUTTON_OPACITY, DEFAULT_BUTTON_OPACITY)));
+        int alpha = Math.round(opacity * 255f / 100f);
+        GradientDrawable outer = new GradientDrawable();
+        outer.setColor((alpha << 24) | rgb);
+        boolean compact = !preferences.getBoolean(KEY_SHOW_TIME, true)
+                && !preferences.getBoolean(KEY_SHOW_BATTERY, true);
+        outer.setCornerRadius(compact ? compactSizePx() / 2f : Ui.dp(context, 18));
+        outer.setStroke(Ui.dp(context, 1), Color.parseColor(
+                rgb == 0x00FFFFFF ? "#33000000" : "#66FFFFFF"));
+        return outer;
+    }
+
+    private int buttonTextColor() {
+        int color = preferences.getInt(KEY_BUTTON_COLOR, DEFAULT_BUTTON_COLOR);
+        return (color & 0x00FFFFFF) == 0x00FFFFFF ? Color.BLACK : Color.WHITE;
+    }
+
+    private int compactSizePx() {
+        int percent = preferences.getInt(KEY_COMPACT_SIZE_PERCENT,
+                DEFAULT_COMPACT_SIZE_PERCENT);
+        percent = Math.max(MIN_COMPACT_SIZE_PERCENT,
+                Math.min(MAX_COMPACT_SIZE_PERCENT, percent));
+        return Ui.dp(context, Math.round(BASE_COMPACT_SIZE_DP * percent / 100f));
     }
 }

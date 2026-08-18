@@ -18,6 +18,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.net.Uri;
 import android.util.DisplayMetrics;
 import android.view.WindowManager;
 import java.nio.ByteBuffer;
@@ -42,6 +43,7 @@ public class ProjectionCaptureService extends Service {
     private int height;
     private volatile boolean captureRequested;
     private volatile boolean saving;
+    private volatile boolean shareAfterCapture;
 
     static void refreshRunningService() {
         if (running != null && running.overlay != null) running.overlay.refreshOptions();
@@ -90,14 +92,50 @@ public class ProjectionCaptureService extends Service {
 
         running = this;
         overlay = new FloatingCaptureOverlay(
-                this, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, this::requestCapture);
+                this, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, this::handleAction);
         overlay.show();
     }
 
-    private void requestCapture() {
-        if (saving || overlay == null) return;
+    private boolean handleAction(int action) {
+        switch (action) {
+            case FloatingCaptureOverlay.ACTION_CAPTURE:
+                return requestCapture(false);
+            case FloatingCaptureOverlay.ACTION_CAPTURE_SHARE:
+                return requestCapture(true);
+            case FloatingCaptureOverlay.ACTION_HOME:
+                Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);
+                return openActivity(home);
+            case FloatingCaptureOverlay.ACTION_TESTTOOLS_HOME:
+                return openActivity(new Intent(this, MainActivity.class));
+            case FloatingCaptureOverlay.ACTION_QUICK_BACKUP:
+                return openActivity(new Intent(this, tw.chehu.quicksend.MainActivity.class));
+            case FloatingCaptureOverlay.ACTION_BACK:
+            case FloatingCaptureOverlay.ACTION_RECENTS:
+                if (overlay != null) overlay.showResult("此 Android 版本需無障礙服務", false);
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    private boolean openActivity(Intent intent) {
+        try {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP |
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            startActivity(intent);
+            return true;
+        } catch (RuntimeException error) {
+            return false;
+        }
+    }
+
+    private boolean requestCapture(boolean shareAfterCapture) {
+        if (saving || overlay == null) return false;
         overlay.setVisible(false);
+        this.shareAfterCapture = shareAfterCapture;
         captureRequested = true;
+        return true;
     }
 
     private void onImageAvailable(ImageReader reader) {
@@ -118,8 +156,9 @@ public class ProjectionCaptureService extends Service {
             if (bitmap != padded) padded.recycle();
             fileExecutor.execute(() -> {
                 try {
-                    ScreenshotStorage.savePng(ProjectionCaptureService.this, bitmap);
-                    showResult("已儲存截圖", true);
+                    Uri uri = ScreenshotStorage.savePng(ProjectionCaptureService.this, bitmap);
+                    boolean share = shareAfterCapture;
+                    showResult(share ? "準備分享" : "已儲存", true, uri, share);
                 } catch (Exception error) {
                     showResult("儲存失敗", false);
                 } finally {
@@ -136,9 +175,19 @@ public class ProjectionCaptureService extends Service {
     }
 
     private void showResult(String message, boolean success) {
+        showResult(message, success, null, false);
+    }
+
+    private void showResult(String message, boolean success, Uri uri, boolean share) {
         mainHandler.post(() -> {
             saving = false;
             if (overlay != null) overlay.showResult(message, success);
+            if (success && share && uri != null) {
+                try { ScreenshotStorage.share(this, uri); }
+                catch (RuntimeException error) {
+                    if (overlay != null) overlay.showResult("已儲存，但無法開啟分享", false);
+                }
+            }
         });
     }
 
@@ -155,7 +204,7 @@ public class ProjectionCaptureService extends Service {
                 ? new Notification.Builder(this, CHANNEL_ID) : new Notification.Builder(this);
         return builder.setSmallIcon(R.drawable.ic_launcher)
                 .setContentTitle("TestTools 浮動快速截圖")
-                .setContentText("點浮動按鈕即可儲存截圖")
+                .setContentText("手勢功能可自訂；長按後拖曳可移動按鈕")
                 .setOngoing(true)
                 .addAction(new Notification.Action.Builder(null, "停止", stop).build())
                 .build();

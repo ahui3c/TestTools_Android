@@ -24,6 +24,7 @@ final class LinkRepository {
     private static final String KEY_ETAG = "etag";
     private static final String KEY_LAST_MODIFIED = "last_modified";
     private static final String KEY_LAST_SYNC = "last_sync";
+    private static final String KEY_SOURCE = "source_url";
     private static final int MAX_DOWNLOAD_BYTES = 2 * 1024 * 1024;
 
     private LinkRepository() {}
@@ -54,8 +55,9 @@ final class LinkRepository {
         connection.setInstanceFollowRedirects(true);
         connection.setRequestProperty("Accept", "text/csv,text/plain;q=0.9,*/*;q=0.1");
         connection.setRequestProperty("User-Agent", "TestTools-Android/1.3");
-        String etag = prefs.getString(KEY_ETAG, "");
-        String lastModified = prefs.getString(KEY_LAST_MODIFIED, "");
+        boolean sameSource = REMOTE_CSV.equals(prefs.getString(KEY_SOURCE, ""));
+        String etag = sameSource ? prefs.getString(KEY_ETAG, "") : "";
+        String lastModified = sameSource ? prefs.getString(KEY_LAST_MODIFIED, "") : "";
         if (!etag.isEmpty()) connection.setRequestProperty("If-None-Match", etag);
         if (!lastModified.isEmpty()) connection.setRequestProperty("If-Modified-Since", lastModified);
 
@@ -78,7 +80,9 @@ final class LinkRepository {
             List<LinkItem> items = parseCsv(csv);
             writeCache(context, bytes);
 
-            SharedPreferences.Editor editor = prefs.edit().putLong(KEY_LAST_SYNC, checkedAt);
+            SharedPreferences.Editor editor = prefs.edit()
+                    .putLong(KEY_LAST_SYNC, checkedAt)
+                    .putString(KEY_SOURCE, REMOTE_CSV);
             String responseEtag = connection.getHeaderField("ETag");
             String responseLastModified = connection.getHeaderField("Last-Modified");
             if (responseEtag != null) editor.putString(KEY_ETAG, responseEtag);
@@ -164,8 +168,11 @@ final class LinkRepository {
                 !"分類".equals(rows.get(0).get(0).trim()) ||
                 !"名稱".equals(rows.get(0).get(1).trim()) ||
                 !"網址".equals(rows.get(0).get(2).trim())) {
-            throw new IOException("雲端資料庫清單欄位必須是：分類、名稱、網址");
+            throw new IOException("雲端資料庫清單前三欄必須是：分類、名稱、網址");
         }
+
+        int typeColumn = findColumn(rows.get(0), "類型");
+        int folderColumn = findColumn(rows.get(0), "資料夾名稱");
 
         List<LinkItem> items = new ArrayList<>();
         for (int i = 1; i < rows.size(); i++) {
@@ -174,11 +181,24 @@ final class LinkRepository {
             String category = values.get(0).trim();
             String name = values.get(1).trim();
             String url = values.get(2).trim();
+            String type = valueAt(values, typeColumn);
+            String folderName = valueAt(values, folderColumn);
             if (!category.isEmpty() && !name.isEmpty() && !url.isEmpty()) {
-                items.add(new LinkItem(category, name, url));
+                items.add(new LinkItem(category, name, url, type, folderName));
             }
         }
         return items;
+    }
+
+    private static int findColumn(List<String> header, String name) {
+        for (int i = 0; i < header.size(); i++) {
+            if (name.equals(header.get(i).trim())) return i;
+        }
+        return -1;
+    }
+
+    private static String valueAt(List<String> values, int index) {
+        return index >= 0 && index < values.size() ? values.get(index).trim() : "";
     }
 
     static final class SyncResult {

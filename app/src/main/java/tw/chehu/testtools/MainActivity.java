@@ -37,9 +37,11 @@ public class MainActivity extends Activity {
 
         addCard(content, R.drawable.ic_module_resources, "常用資源", "在測試素材與常用程式頁簽間切換，快速開啟檔案、工具與網站", this::openLinks);
         addCard(content, R.drawable.ic_module_brightness, "測試亮度", "全螢幕顯示自訂比例的白色方形或圓形測試區域", () -> startActivity(new Intent(this, BrightnessSetupActivity.class)));
-        addCard(content, R.drawable.ic_module_screenshot, "浮動快速截圖", "在其他 App 上方顯示時間與電量，點一下立即保存螢幕截圖", () -> startActivity(new Intent(this, ScreenshotSettingsActivity.class)));
+        addCard(content, R.drawable.ic_module_screenshot, "浮動快速截圖", "自訂單擊、雙擊與四方向滑動功能，長按後可拖曳移動", () -> startActivity(new Intent(this, ScreenshotSettingsActivity.class)));
         addCard(content, R.drawable.ic_module_backup, "影音快速備份", "將 DCIM／Pictures 備份至 LocalSend 接收端或 USB 外接磁碟", () -> startActivity(new Intent(this, tw.chehu.quicksend.MainActivity.class)));
         addCard(content, R.drawable.ic_module_battery, "充電數據監控", "每分鐘低負載記錄電量、充電狀態與電池端估算功率，可匯出 CSV", () -> startActivity(new Intent(this, ChargingMonitorActivity.class)));
+        addCard(content, R.drawable.ic_module_device_info, "手機資訊", "查看並快速複製硬體、系統、螢幕、電池與相機資訊，可匯出 TXT", () -> startActivity(new Intent(this, DeviceInfoActivity.class)));
+        addCard(content, R.drawable.ic_module_update, "線上更新", "檢查 GitHub Release，快速下載並安裝最新版 APK", () -> startActivity(new Intent(this, OnlineUpdateActivity.class)));
 
         setContentView(scroll);
     }

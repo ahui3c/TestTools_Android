@@ -1,12 +1,14 @@
 package tw.chehu.testtools;
 
 import android.accessibilityservice.AccessibilityService;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.ColorSpace;
 import android.hardware.HardwareBuffer;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.net.Uri;
 import android.view.Display;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
@@ -41,7 +43,7 @@ public class QuickScreenshotAccessibilityService extends AccessibilityService {
         }
         if (overlay == null) {
             overlay = new FloatingCaptureOverlay(
-                    this, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, this::capture);
+                    this, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, this::handleAction);
             overlay.show();
         } else {
             overlay.refreshOptions();
@@ -49,8 +51,41 @@ public class QuickScreenshotAccessibilityService extends AccessibilityService {
         }
     }
 
-    private void capture() {
-        if (capturing || overlay == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return;
+    private boolean handleAction(int action) {
+        switch (action) {
+            case FloatingCaptureOverlay.ACTION_CAPTURE:
+                return capture(false);
+            case FloatingCaptureOverlay.ACTION_CAPTURE_SHARE:
+                return capture(true);
+            case FloatingCaptureOverlay.ACTION_BACK:
+                return performGlobalAction(GLOBAL_ACTION_BACK);
+            case FloatingCaptureOverlay.ACTION_RECENTS:
+                return performGlobalAction(GLOBAL_ACTION_RECENTS);
+            case FloatingCaptureOverlay.ACTION_HOME:
+                return performGlobalAction(GLOBAL_ACTION_HOME);
+            case FloatingCaptureOverlay.ACTION_TESTTOOLS_HOME:
+                return openActivity(new Intent(this, MainActivity.class));
+            case FloatingCaptureOverlay.ACTION_QUICK_BACKUP:
+                return openActivity(new Intent(this, tw.chehu.quicksend.MainActivity.class));
+            default:
+                return false;
+        }
+    }
+
+    private boolean openActivity(Intent intent) {
+        try {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP |
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            startActivity(intent);
+            return true;
+        } catch (RuntimeException error) {
+            return false;
+        }
+    }
+
+    private boolean capture(boolean shareAfterCapture) {
+        if (capturing || overlay == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return false;
         capturing = true;
         overlay.setVisible(false);
         mainHandler.postDelayed(() -> takeScreenshot(
@@ -72,10 +107,12 @@ public class QuickScreenshotAccessibilityService extends AccessibilityService {
                         }
                         fileExecutor.execute(() -> {
                             try {
-                                ScreenshotStorage.savePng(QuickScreenshotAccessibilityService.this, bitmap);
-                                finishCapture("已儲存截圖", true);
+                                Uri uri = ScreenshotStorage.savePng(
+                                        QuickScreenshotAccessibilityService.this, bitmap);
+                                finishCapture(shareAfterCapture ? "準備分享" : "已儲存",
+                                        true, uri, shareAfterCapture);
                             } catch (Exception error) {
-                                finishCapture("儲存失敗", false);
+                                finishCapture("儲存失敗", false, null, false);
                             } finally {
                                 bitmap.recycle();
                             }
@@ -84,15 +121,26 @@ public class QuickScreenshotAccessibilityService extends AccessibilityService {
 
                     @Override
                     public void onFailure(int errorCode) {
-                        finishCapture("此畫面無法擷取", false);
+                        finishCapture("此畫面無法擷取", false, null, false);
                     }
                 }), 120);
+        return true;
     }
 
     private void finishCapture(String message, boolean success) {
+        finishCapture(message, success, null, false);
+    }
+
+    private void finishCapture(String message, boolean success, Uri uri, boolean share) {
         mainHandler.post(() -> {
             capturing = false;
             if (overlay != null) overlay.showResult(message, success);
+            if (success && share && uri != null) {
+                try { ScreenshotStorage.share(this, uri); }
+                catch (RuntimeException error) {
+                    if (overlay != null) overlay.showResult("已儲存，但無法開啟分享", false);
+                }
+            }
         });
     }
 

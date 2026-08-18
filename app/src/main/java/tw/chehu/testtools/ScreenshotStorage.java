@@ -3,6 +3,8 @@ package tw.chehu.testtools;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.ClipData;
+import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.net.Uri;
@@ -66,8 +68,20 @@ final class ScreenshotStorage {
         ContentValues values = new ContentValues();
         values.put(MediaStore.Images.Media.DATA, file.getAbsolutePath());
         values.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
-        context.getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
-        return Uri.fromFile(file);
+        Uri mediaUri = context.getContentResolver().insert(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+        return mediaUri == null ? Uri.fromFile(file) : mediaUri;
+    }
+
+    static void share(Context context, Uri uri) {
+        Intent send = new Intent(Intent.ACTION_SEND)
+                .setType("image/png")
+                .putExtra(Intent.EXTRA_STREAM, uri)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        send.setClipData(ClipData.newRawUri("截圖", uri));
+        Intent chooser = Intent.createChooser(send, "分享截圖")
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        context.startActivity(chooser);
     }
 
     private static String resolveScreenshotPath(Context context) {

@@ -41,14 +41,16 @@ final class XlsxLinkReader {
         List<LinkItem> items = new ArrayList<>();
         for (int rowIndex = 1; rowIndex < rows.getLength(); rowIndex++) {
             NodeList cells = ((Element) rows.item(rowIndex)).getElementsByTagName("c");
-            String[] values = new String[] {"", "", ""};
+            String[] values = new String[] {"", "", "", "", ""};
             for (int i = 0; i < cells.getLength(); i++) {
                 Element cell = (Element) cells.item(i);
                 int column = columnIndex(cell.getAttribute("r"));
                 if (column >= 0 && column < values.length) values[column] = cellValue(cell, shared);
             }
             if (!values[0].trim().isEmpty() && !values[1].trim().isEmpty() && !values[2].trim().isEmpty()) {
-                items.add(new LinkItem(values[0].trim(), values[1].trim(), values[2].trim()));
+                items.add(new LinkItem(
+                        values[0].trim(), values[1].trim(), values[2].trim(),
+                        values[3].trim(), values[4].trim()));
             }
         }
         return items;
