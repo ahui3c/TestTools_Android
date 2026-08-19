@@ -249,13 +249,13 @@ public class ChargingMonitorService extends Service {
         }
         long now = System.currentTimeMillis();
         long started = preferences.getLong(KEY_SESSION_STARTED, now);
-        double elapsedMinutes = Math.max(0, now - started) / 60_000d;
+        long elapsedMinutes = Math.max(0L, now - started) / 60_000L;
 
         String row = String.join(",",
                 csv(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z", Locale.US).format(new Date(now))),
                 csv(event),
-                number(elapsedMinutes, 2),
-                percent < 0 ? "" : String.valueOf(percent),
+                String.valueOf(elapsedMinutes),
+                percent < 0 ? "" : percent + "%",
                 delta == null ? "" : String.valueOf(delta),
                 csv(statusName(status)),
                 external ? "是" : "否",

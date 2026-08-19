@@ -18,11 +18,17 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 
 public class ChargingMonitorActivity extends Activity {
@@ -225,9 +231,7 @@ public class ChargingMonitorActivity extends Activity {
                 try (FileInputStream input = new FileInputStream(source);
                      OutputStream output = getContentResolver().openOutputStream(destination, "w")) {
                     if (output == null) throw new IllegalStateException("無法開啟輸出檔案");
-                    byte[] buffer = new byte[8192];
-                    int read;
-                    while ((read = input.read(buffer)) >= 0) output.write(buffer, 0, read);
+                    writeFormattedCsv(input, output);
                 }
             }
             runOnUiThread(() -> Toast.makeText(
@@ -236,6 +240,85 @@ public class ChargingMonitorActivity extends Activity {
             runOnUiThread(() -> Toast.makeText(
                     this, "CSV 匯出失敗", Toast.LENGTH_LONG).show());
         }
+    }
+
+    private void writeFormattedCsv(FileInputStream input, OutputStream output) throws Exception {
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(input, StandardCharsets.UTF_8));
+             OutputStreamWriter writer = new OutputStreamWriter(output, StandardCharsets.UTF_8)) {
+            writer.write('\ufeff');
+            String line;
+            boolean firstLine = true;
+            while ((line = reader.readLine()) != null) {
+                if (firstLine) {
+                    if (!line.isEmpty() && line.charAt(0) == '\ufeff') line = line.substring(1);
+                    writer.write(line);
+                    writer.write('\n');
+                    firstLine = false;
+                    continue;
+                }
+                List<String> fields = parseCsvLine(line);
+                if (fields.size() >= 4) {
+                    fields.set(2, wholeElapsedMinutes(fields.get(2)));
+                    fields.set(3, batteryPercent(fields.get(3)));
+                }
+                writer.write(formatCsvLine(fields));
+                writer.write('\n');
+            }
+        }
+    }
+
+    private List<String> parseCsvLine(String line) {
+        List<String> fields = new ArrayList<>();
+        StringBuilder value = new StringBuilder();
+        boolean quoted = false;
+        for (int index = 0; index < line.length(); index++) {
+            char current = line.charAt(index);
+            if (current == '"') {
+                if (quoted && index + 1 < line.length() && line.charAt(index + 1) == '"') {
+                    value.append('"');
+                    index++;
+                } else {
+                    quoted = !quoted;
+                }
+            } else if (current == ',' && !quoted) {
+                fields.add(value.toString());
+                value.setLength(0);
+            } else {
+                value.append(current);
+            }
+        }
+        fields.add(value.toString());
+        return fields;
+    }
+
+    private String wholeElapsedMinutes(String value) {
+        try {
+            double minutes = Double.parseDouble(value.trim());
+            return String.valueOf((long) Math.floor(Math.max(0d, minutes)));
+        } catch (NumberFormatException ignored) {
+            return value;
+        }
+    }
+
+    private String batteryPercent(String value) {
+        String trimmed = value.trim();
+        return trimmed.isEmpty() || trimmed.endsWith("%") ? trimmed : trimmed + "%";
+    }
+
+    private String formatCsvLine(List<String> fields) {
+        StringBuilder row = new StringBuilder();
+        for (int index = 0; index < fields.size(); index++) {
+            if (index > 0) row.append(',');
+            String value = fields.get(index);
+            if (value.indexOf(',') >= 0 || value.indexOf('"') >= 0
+                    || value.indexOf('\r') >= 0 || value.indexOf('\n') >= 0) {
+                row.append('"').append(value.replace("\"", "\"\"")).append('"');
+            } else {
+                row.append(value);
+            }
+        }
+        return row.toString();
     }
 
     @Override
