@@ -76,8 +76,6 @@ public class QuickScreenshotAccessibilityService extends AccessibilityService {
                 return opened;
             case FloatingCaptureOverlay.ACTION_OPEN_SELECTED_APP:
                 return handleQuickAction(SystemQuickActions.openSelectedApp(this));
-            case FloatingCaptureOverlay.ACTION_RUN_APP_ACTION:
-                return handleQuickAction(SystemQuickActions.runConfiguredAppAction(this));
             case FloatingCaptureOverlay.ACTION_TOGGLE_MUTE:
                 return handleQuickAction(SystemQuickActions.toggleMute(this));
             default:

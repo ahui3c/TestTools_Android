@@ -47,13 +47,19 @@ final class FloatingCaptureOverlay {
     static final int ACTION_TOGGLE_TORCH = 9;
     static final int ACTION_NOTIFICATIONS = 10;
     static final int ACTION_OPEN_SELECTED_APP = 11;
-    static final int ACTION_RUN_APP_ACTION = 12;
+    static final int LEGACY_ACTION_RUN_APP_ACTION = 12;
     static final int ACTION_TOGGLE_MUTE = 13;
+    static final int[] ACTION_IDS = {
+            ACTION_NONE, ACTION_CAPTURE, ACTION_CAPTURE_SHARE, ACTION_BACK,
+            ACTION_RECENTS, ACTION_HOME, ACTION_TESTTOOLS_HOME, ACTION_QUICK_BACKUP,
+            ACTION_HIDE_TO_EDGE, ACTION_TOGGLE_TORCH, ACTION_NOTIFICATIONS,
+            ACTION_OPEN_SELECTED_APP, ACTION_TOGGLE_MUTE
+    };
     static final String[] ACTION_LABELS = {
             "未指定", "抓圖儲存", "抓圖儲存並分享", "返回（Back）",
             "多工按鍵", "返回系統首頁", "開啟 TestTools 首頁", "開啟影音快速備份",
             "隱藏至螢幕側邊", "開關補光燈／手電筒", "下拉通知面板",
-            "開啟指定應用程式", "執行指定程式動作", "快速切換系統靜音"
+            "開啟指定應用程式", "快速切換系統靜音"
     };
 
     static final String PREFS = "floating_screenshot";

@@ -9,15 +9,11 @@ import android.content.pm.PackageManager;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraManager;
 import android.media.AudioManager;
-import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 
 final class SystemQuickActions {
     static final String KEY_SELECTED_APP_PACKAGE = "selected_app_package";
-    static final String KEY_APP_ACTION = "selected_app_action";
-    static final String KEY_APP_ACTION_URI = "selected_app_action_uri";
-    static final String DEFAULT_APP_ACTION = Intent.ACTION_VIEW;
     private static final String KEY_TORCH_ON = "torch_on";
 
     private static CameraManager cameraManager;
@@ -60,28 +56,6 @@ final class SystemQuickActions {
         Intent launch = context.getPackageManager().getLaunchIntentForPackage(packageName);
         if (launch == null) return Result.failure("指定的應用程式目前無法開啟");
         return start(context, launch, "已開啟指定應用程式");
-    }
-
-    static Result runConfiguredAppAction(Context context) {
-        SharedPreferences prefs = preferences(context);
-        String packageName = value(prefs.getString(KEY_SELECTED_APP_PACKAGE, ""));
-        String action = value(prefs.getString(KEY_APP_ACTION, DEFAULT_APP_ACTION));
-        String uriText = value(prefs.getString(KEY_APP_ACTION_URI, ""));
-        if (action.isEmpty() && uriText.isEmpty()) {
-            return Result.failure("尚未設定程式動作或 Deep Link");
-        }
-        Intent intent;
-        try {
-            Uri uri = uriText.isEmpty() ? null : Uri.parse(uriText);
-            intent = new Intent(action.isEmpty() ? Intent.ACTION_VIEW : action, uri);
-        } catch (RuntimeException error) {
-            return Result.failure("程式動作的 Deep Link 格式錯誤");
-        }
-        if (!packageName.isEmpty()) intent.setPackage(packageName);
-        if (intent.resolveActivity(context.getPackageManager()) == null) {
-            return Result.failure("指定應用程式不支援這個動作");
-        }
-        return start(context, intent, "已執行指定程式動作");
     }
 
     static Result toggleMute(Context context) {
@@ -166,16 +140,12 @@ final class SystemQuickActions {
             context.startActivity(intent);
             return Result.success(successMessage);
         } catch (RuntimeException error) {
-            return Result.failure("無法執行指定程式動作");
+            return Result.failure("無法開啟指定應用程式");
         }
     }
 
     private static SharedPreferences preferences(Context context) {
         return context.getSharedPreferences(FloatingCaptureOverlay.PREFS, Context.MODE_PRIVATE);
-    }
-
-    private static String value(String value) {
-        return value == null ? "" : value.trim();
     }
 
     static final class Result {

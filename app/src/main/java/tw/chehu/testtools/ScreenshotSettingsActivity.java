@@ -13,18 +13,22 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.text.TextUtils;
+import android.view.Gravity;
+import android.view.View;
 import android.view.accessibility.AccessibilityManager;
-import android.widget.Button;
-import android.widget.CheckBox;
 import android.widget.ArrayAdapter;
 import android.widget.AdapterView;
+import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import android.widget.ScrollView;
 import android.widget.Spinner;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.util.List;
+import java.util.Locale;
 
 public class ScreenshotSettingsActivity extends Activity {
     private static final int REQUEST_PROJECTION = 6201;
@@ -51,36 +55,39 @@ public class ScreenshotSettingsActivity extends Activity {
         scroll.setBackgroundColor(Ui.color("#F8FAFC"));
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(Ui.dp(this, 20), Ui.dp(this, 20), Ui.dp(this, 20), Ui.dp(this, 30));
+        content.setPadding(Ui.dp(this, 16), Ui.dp(this, 16), Ui.dp(this, 16), Ui.dp(this, 28));
         scroll.addView(content);
 
-        TextView back = Ui.text(this, "‹  返回", 16, Ui.color("#2563EB"), true);
-        back.setPadding(0, 0, 0, Ui.dp(this, 18));
+        TextView back = Ui.text(this, "‹  返回", 15, Ui.color("#2563EB"), true);
+        back.setGravity(Gravity.CENTER_VERTICAL);
+        back.setMinHeight(Ui.dp(this, 40));
         back.setOnClickListener(v -> finish());
         content.addView(back);
-        content.addView(Ui.text(this, "浮動快速截圖", 28, Ui.color("#0F172A"), true));
+        content.addView(Ui.text(this, "浮動快速截圖", 26, Ui.color("#0F172A"), true));
         TextView intro = Ui.text(this,
-                "單擊、雙擊及上下左右滑動都可指定功能；可將任一手勢設為隱藏，按鈕會收納成最靠近螢幕側邊的半透明細線，點一下細線即可恢復。要移動按鈕位置，請先長按不放，感覺到震動後再拖曳。",
-                14, Ui.color("#64748B"), false);
-        intro.setPadding(0, Ui.dp(this, 7), 0, Ui.dp(this, 18));
+                "自訂點擊與滑動功能；長按震動後可拖曳按鈕位置。",
+                13, Ui.color("#64748B"), false);
+        intro.setPadding(0, Ui.dp(this, 5), 0, Ui.dp(this, 12));
         content.addView(intro);
 
-        LinearLayout notice = panel();
-        notice.addView(Ui.text(this,
+        TextView notice = Ui.text(this,
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
-                        ? "Android 11 以上使用系統的無障礙截圖功能。第一次需手動開啟「TestTools 浮動快速截圖」，之後每次按下浮動按鈕不會再詢問擷取範圍。"
-                        : "此 Android 版本需允許顯示在其他 App 上層，並接受一次系統螢幕擷取授權；授權工作階段停止或手機重新啟動後需再次允許。",
-                14, Ui.color("#334155"), false));
-        addPanel(content, notice);
+                        ? "首次使用需開啟無障礙服務，之後截圖不會重複詢問。"
+                        : "首次使用需允許顯示於其他 App 上層及螢幕擷取。",
+                13, Ui.color("#1E40AF"), false);
+        notice.setBackground(Ui.background(Ui.color("#EFF6FF"), 12, this));
+        Ui.setPadding(notice, 12, 10);
+        LinearLayout.LayoutParams noticeParams = new LinearLayout.LayoutParams(-1, -2);
+        noticeParams.bottomMargin = Ui.dp(this, 10);
+        content.addView(notice, noticeParams);
 
         LinearLayout gestures = panel();
-        TextView gestureTitle = Ui.text(this, "手勢功能設定", 17, Ui.color("#0F172A"), true);
-        gestureTitle.setPadding(0, 0, 0, Ui.dp(this, 5));
+        TextView gestureTitle = sectionTitle("手勢功能");
         gestures.addView(gestureTitle);
         TextView gestureHint = Ui.text(this,
-                "功能成功觸發時會短震動。返回與多工功能在 Android 11 以上透過無障礙服務執行。",
-                13, Ui.color("#64748B"), false);
-        gestureHint.setPadding(0, 0, 0, Ui.dp(this, 8));
+                "觸發成功會短震動；設定為「隱藏」可收納至最近的螢幕側邊。",
+                12, Ui.color("#64748B"), false);
+        gestureHint.setPadding(0, 0, 0, Ui.dp(this, 6));
         gestures.addView(gestureHint);
         addGestureSelector(gestures, "單擊", FloatingCaptureOverlay.KEY_ACTION_TAP,
                 FloatingCaptureOverlay.ACTION_CAPTURE);
@@ -94,31 +101,32 @@ public class ScreenshotSettingsActivity extends Activity {
                 FloatingCaptureOverlay.ACTION_NONE);
         addGestureSelector(gestures, "向右滑動", FloatingCaptureOverlay.KEY_ACTION_SWIPE_RIGHT,
                 FloatingCaptureOverlay.ACTION_NONE);
-        Button quickActionSettings = actionButton("設定指定 App、程式動作與系統權限",
+        Button quickActionSettings = actionButton("快捷功能與 App 設定",
                 "#E8F0FE", Ui.color("#1D4ED8"));
         LinearLayout.LayoutParams quickActionParams = buttonParams();
-        quickActionParams.topMargin = Ui.dp(this, 8);
+        quickActionParams.topMargin = Ui.dp(this, 6);
         gestures.addView(quickActionSettings, quickActionParams);
         quickActionSettings.setOnClickListener(v -> startActivity(
                 new Intent(this, QuickActionSettingsActivity.class)));
         addPanel(content, gestures);
 
-        CheckBox showTime = option("浮動按鈕顯示現在時間",
+        Switch showTime = toggleOption("顯示現在時間",
                 preferences.getBoolean(FloatingCaptureOverlay.KEY_SHOW_TIME, true));
-        CheckBox showBattery = option("浮動按鈕顯示設備電量",
+        Switch showBattery = toggleOption("顯示設備電量",
                 preferences.getBoolean(FloatingCaptureOverlay.KEY_SHOW_BATTERY, true));
-        CheckBox flashFeedback = option("截圖成功時顯示明顯白色閃光",
+        Switch flashFeedback = toggleOption("白色閃光",
                 preferences.getBoolean(FloatingCaptureOverlay.KEY_FLASH_FEEDBACK, true));
-        CheckBox vibrateFeedback = option("截圖成功時使用雙段震動",
+        Switch vibrateFeedback = toggleOption("雙段震動",
                 preferences.getBoolean(FloatingCaptureOverlay.KEY_VIBRATE_FEEDBACK, false));
-        CheckBox soundFeedback = option("截圖成功時播放清晰快門提示音",
+        Switch soundFeedback = toggleOption("快門提示音",
                 preferences.getBoolean(FloatingCaptureOverlay.KEY_SOUND_FEEDBACK, false));
         LinearLayout options = panel();
-        options.addView(showTime);
-        options.addView(showBattery);
-        options.addView(flashFeedback);
-        options.addView(vibrateFeedback);
-        options.addView(soundFeedback);
+        options.addView(sectionTitle("顯示與截圖回饋"));
+        addToggle(options, showTime, true);
+        addToggle(options, showBattery, true);
+        addToggle(options, flashFeedback, true);
+        addToggle(options, vibrateFeedback, true);
+        addToggle(options, soundFeedback, false);
         addPanel(content, options);
         showTime.setOnCheckedChangeListener((button, checked) -> {
             preferences.edit().putBoolean(FloatingCaptureOverlay.KEY_SHOW_TIME, checked).apply();
@@ -135,28 +143,26 @@ public class ScreenshotSettingsActivity extends Activity {
         soundFeedback.setOnCheckedChangeListener((button, checked) ->
                 preferences.edit().putBoolean(FloatingCaptureOverlay.KEY_SOUND_FEEDBACK, checked).apply());
 
-        TextView appearanceTitle = Ui.text(this, "浮動按鈕外觀", 16, Ui.color("#0F172A"), true);
-        appearanceTitle.setPadding(0, 0, 0, Ui.dp(this, 8));
+        TextView appearanceTitle = sectionTitle("按鈕外觀");
         Spinner colorSpinner = new Spinner(this);
-        ArrayAdapter<String> colorAdapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_dropdown_item, BUTTON_COLOR_NAMES);
-        colorSpinner.setAdapter(colorAdapter);
+        colorSpinner.setAdapter(compactAdapter(BUTTON_COLOR_NAMES));
         int savedColor = preferences.getInt(FloatingCaptureOverlay.KEY_BUTTON_COLOR,
                 FloatingCaptureOverlay.DEFAULT_BUTTON_COLOR);
         colorSpinner.setSelection(colorIndex(savedColor));
 
         int savedOpacity = preferences.getInt(FloatingCaptureOverlay.KEY_BUTTON_OPACITY,
                 FloatingCaptureOverlay.DEFAULT_BUTTON_OPACITY);
-        TextView opacityLabel = Ui.text(this, "按鈕不透明度：" + savedOpacity + "%", 15,
+        TextView opacityLabel = Ui.text(this, percentLabel("透明度", savedOpacity), 14,
                 Ui.color("#334155"), false);
-        opacityLabel.setPadding(0, Ui.dp(this, 12), 0, 0);
+        opacityLabel.setPadding(0, Ui.dp(this, 10), 0, 0);
         SeekBar opacity = new SeekBar(this);
         opacity.setMax(80);
         opacity.setProgress(Math.max(20, Math.min(100, savedOpacity)) - 20);
 
         LinearLayout appearance = panel();
         appearance.addView(appearanceTitle);
-        appearance.addView(colorSpinner);
+        LinearLayout colorRow = compactSettingRow("顏色", colorSpinner);
+        appearance.addView(colorRow);
         appearance.addView(opacityLabel);
         appearance.addView(opacity);
 
@@ -166,9 +172,9 @@ public class ScreenshotSettingsActivity extends Activity {
         savedCompactSize = Math.max(FloatingCaptureOverlay.MIN_COMPACT_SIZE_PERCENT,
                 Math.min(FloatingCaptureOverlay.MAX_COMPACT_SIZE_PERCENT, savedCompactSize));
         TextView compactSizeLabel = Ui.text(this,
-                "圓形按鈕大小：" + savedCompactSize + "%", 15,
+                percentLabel("圓形大小", savedCompactSize), 14,
                 Ui.color("#334155"), false);
-        compactSizeLabel.setPadding(0, Ui.dp(this, 12), 0, 0);
+        compactSizeLabel.setPadding(0, Ui.dp(this, 8), 0, 0);
         SeekBar compactSize = new SeekBar(this);
         compactSize.setMax(FloatingCaptureOverlay.MAX_COMPACT_SIZE_PERCENT
                 - FloatingCaptureOverlay.MIN_COMPACT_SIZE_PERCENT);
@@ -177,9 +183,9 @@ public class ScreenshotSettingsActivity extends Activity {
         appearance.addView(compactSizeLabel);
         appearance.addView(compactSize);
         TextView compactHint = Ui.text(this,
-                "同時關閉時間與電量後，浮動按鈕會改為可調整大小的一般圓形按鈕；100% 等於原本的 56 dp。",
-                13, Ui.color("#64748B"), false);
-        compactHint.setPadding(0, Ui.dp(this, 6), 0, 0);
+                "關閉時間與電量後套用圓形大小；100% 為 56 dp。",
+                12, Ui.color("#64748B"), false);
+        compactHint.setPadding(0, Ui.dp(this, 2), 0, 0);
         appearance.addView(compactHint);
         addPanel(content, appearance);
 
@@ -195,7 +201,7 @@ public class ScreenshotSettingsActivity extends Activity {
         opacity.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 int value = progress + 20;
-                opacityLabel.setText("按鈕不透明度：" + value + "%");
+                opacityLabel.setText(percentLabel("透明度", value));
                 if (fromUser) {
                     preferences.edit().putInt(FloatingCaptureOverlay.KEY_BUTTON_OPACITY, value).apply();
                     refreshServices();
@@ -207,7 +213,7 @@ public class ScreenshotSettingsActivity extends Activity {
         compactSize.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 int value = progress + FloatingCaptureOverlay.MIN_COMPACT_SIZE_PERCENT;
-                compactSizeLabel.setText("圓形按鈕大小：" + value + "%");
+                compactSizeLabel.setText(percentLabel("圓形大小", value));
                 if (fromUser) {
                     preferences.edit().putInt(
                             FloatingCaptureOverlay.KEY_COMPACT_SIZE_PERCENT, value).apply();
@@ -218,10 +224,12 @@ public class ScreenshotSettingsActivity extends Activity {
             @Override public void onStopTrackingTouch(SeekBar seekBar) {}
         });
 
-        status = Ui.text(this, "", 14, Ui.color("#475569"), true);
-        LinearLayout statusPanel = panel();
-        statusPanel.addView(status);
-        addPanel(content, statusPanel);
+        status = Ui.text(this, "", 13, Ui.color("#334155"), true);
+        status.setGravity(Gravity.CENTER_VERTICAL);
+        Ui.setPadding(status, 12, 9);
+        LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(-1, -2);
+        statusParams.bottomMargin = Ui.dp(this, 8);
+        content.addView(status, statusParams);
 
         overlayToggle = actionButton("", "#2563EB", Color.WHITE);
         content.addView(overlayToggle, buttonParams());
@@ -235,7 +243,7 @@ public class ScreenshotSettingsActivity extends Activity {
         updateToggleButton();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            Button settings = actionButton("開啟無障礙服務設定", "#FFFFFF", Ui.color("#2563EB"));
+            Button settings = actionButton("無障礙服務設定", "#FFFFFF", Ui.color("#2563EB"));
             LinearLayout.LayoutParams settingsParams = buttonParams();
             settingsParams.topMargin = Ui.dp(this, 10);
             content.addView(settings, settingsParams);
@@ -244,8 +252,8 @@ public class ScreenshotSettingsActivity extends Activity {
 
         TextView limitation = Ui.text(this,
                 "注意：銀行、串流 DRM、無痕模式等受保護畫面可能禁止截圖；這是 Android 的安全限制。",
-                13, Ui.color("#94A3B8"), false);
-        limitation.setPadding(0, Ui.dp(this, 18), 0, 0);
+                12, Ui.color("#94A3B8"), false);
+        limitation.setPadding(0, Ui.dp(this, 14), 0, 0);
         content.addView(limitation);
         setContentView(scroll);
     }
@@ -323,8 +331,7 @@ public class ScreenshotSettingsActivity extends Activity {
         Intent service = new Intent(this, ProjectionCaptureService.class)
                 .putExtra(ProjectionCaptureService.EXTRA_RESULT_CODE, resultCode)
                 .putExtra(ProjectionCaptureService.EXTRA_RESULT_DATA, data);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(service);
-        else startService(service);
+        startForegroundService(service);
         updateStatus();
     }
 
@@ -361,23 +368,29 @@ public class ScreenshotSettingsActivity extends Activity {
         if (status == null) return;
         boolean wanted = preferences.getBoolean(FloatingCaptureOverlay.KEY_ENABLED, false);
         if (!wanted) {
-            status.setText("狀態：浮動按鈕已停止");
+            setStatusStyle("浮動按鈕已停止", "#F1F5F9", "#475569");
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !isAccessibilityEnabled()) {
-            status.setText("狀態：等待開啟無障礙服務");
+            setStatusStyle("等待開啟無障礙服務", "#FFF7ED", "#9A3412");
         } else if (preferences.getBoolean(FloatingCaptureOverlay.KEY_EDGE_HIDDEN, false)) {
-            status.setText("狀態：浮動按鈕已收納於螢幕側邊");
+            setStatusStyle("浮動按鈕已收納於螢幕側邊", "#EFF6FF", "#1D4ED8");
         } else {
-            status.setText("狀態：浮動按鈕已啟用");
+            setStatusStyle("浮動按鈕已啟用", "#ECFDF5", "#047857");
         }
         updateToggleButton();
+    }
+
+    private void setStatusStyle(String value, String background, String textColor) {
+        status.setText(String.format(Locale.TAIWAN, "●  %s", value));
+        status.setTextColor(Ui.color(textColor));
+        status.setBackground(Ui.background(Ui.color(background), 10, this));
     }
 
     private void updateToggleButton() {
         if (overlayToggle == null) return;
         boolean enabled = preferences.getBoolean(FloatingCaptureOverlay.KEY_ENABLED, false);
         overlayToggle.setText(enabled
-                ? "隱藏並停止浮動按鈕"
-                : "啟用／顯示浮動按鈕");
+                ? "停止浮動按鈕"
+                : "啟用浮動按鈕");
         overlayToggle.setTextColor(enabled ? Ui.color("#334155") : Color.WHITE);
         overlayToggle.setBackground(Ui.background(
                 Ui.color(enabled ? "#E2E8F0" : "#2563EB"), 14, this));
@@ -391,30 +404,49 @@ public class ScreenshotSettingsActivity extends Activity {
     private LinearLayout panel() {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setBackground(Ui.background(Color.WHITE, 14, this));
+        panel.setBackground(Ui.background(Color.WHITE, 16, this));
+        panel.setElevation(Ui.dp(this, 1));
         panel.setPadding(Ui.dp(this, 14), Ui.dp(this, 12), Ui.dp(this, 14), Ui.dp(this, 12));
         return panel;
     }
 
     private void addPanel(LinearLayout content, LinearLayout panel) {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
-        params.bottomMargin = Ui.dp(this, 12);
+        params.bottomMargin = Ui.dp(this, 10);
         content.addView(panel, params);
     }
 
-    private CheckBox option(String label, boolean checked) {
-        CheckBox option = new CheckBox(this);
+    private TextView sectionTitle(String label) {
+        TextView title = Ui.text(this, label, 17, Ui.color("#0F172A"), true);
+        title.setPadding(0, 0, 0, Ui.dp(this, 7));
+        return title;
+    }
+
+    private Switch toggleOption(String label, boolean checked) {
+        Switch option = new Switch(this);
         option.setText(label);
-        option.setTextSize(16);
+        option.setTextSize(14);
+        option.setTextColor(Ui.color("#334155"));
         option.setChecked(checked);
-        option.setPadding(0, Ui.dp(this, 5), 0, Ui.dp(this, 5));
+        option.setGravity(Gravity.CENTER_VERTICAL);
+        option.setMinHeight(Ui.dp(this, 44));
+        option.setPadding(0, 0, 0, 0);
         return option;
+    }
+
+    private void addToggle(LinearLayout parent, Switch option, boolean dividerAfter) {
+        parent.addView(option, new LinearLayout.LayoutParams(-1, Ui.dp(this, 44)));
+        if (dividerAfter) {
+            View divider = new View(this);
+            divider.setBackgroundColor(Ui.color("#E2E8F0"));
+            parent.addView(divider, new LinearLayout.LayoutParams(-1, Ui.dp(this, 1)));
+        }
     }
 
     private Button actionButton(String label, String background, int textColor) {
         Button button = new Button(this);
         button.setText(label);
-        button.setTextSize(16);
+        button.setTextSize(15);
         button.setTextColor(textColor);
         button.setAllCaps(false);
         button.setBackground(Ui.background(Ui.color(background), 14, this));
@@ -422,7 +454,52 @@ public class ScreenshotSettingsActivity extends Activity {
     }
 
     private LinearLayout.LayoutParams buttonParams() {
-        return new LinearLayout.LayoutParams(-1, Ui.dp(this, 56));
+        return new LinearLayout.LayoutParams(-1, Ui.dp(this, 48));
+    }
+
+    private LinearLayout compactSettingRow(String label, View control) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        TextView title = Ui.text(this, label, 14, Ui.color("#475569"), true);
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+                Ui.dp(this, 64), Ui.dp(this, 44));
+        title.setGravity(Gravity.CENTER_VERTICAL);
+        row.addView(title, titleParams);
+        row.addView(control, new LinearLayout.LayoutParams(0, Ui.dp(this, 44), 1f));
+        return row;
+    }
+
+    private ArrayAdapter<String> compactAdapter(String[] labels) {
+        return new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, labels) {
+            @Override
+            public View getView(int position, View convertView, android.view.ViewGroup parent) {
+                return spinnerText(labels[position], false);
+            }
+
+            @Override
+            public View getDropDownView(int position, View convertView,
+                                        android.view.ViewGroup parent) {
+                return spinnerText(labels[position], true);
+            }
+        };
+    }
+
+    private String percentLabel(String label, int value) {
+        return String.format(Locale.TAIWAN, "%s  %d%%", label, value);
+    }
+
+    private TextView spinnerText(String label, boolean dropdown) {
+        TextView text = Ui.text(this, label, dropdown ? 15 : 14,
+                Ui.color("#0F172A"), false);
+        text.setGravity(Gravity.CENTER_VERTICAL);
+        text.setSingleLine(true);
+        text.setEllipsize(TextUtils.TruncateAt.END);
+        text.setMinHeight(Ui.dp(this, 44));
+        text.setPadding(Ui.dp(this, 12), 0, Ui.dp(this, 30), 0);
+        text.setBackground(Ui.background(
+                Ui.color(dropdown ? "#FFFFFF" : "#F1F5F9"), 10, this));
+        return text;
     }
 
     private int colorIndex(int color) {
@@ -435,25 +512,39 @@ public class ScreenshotSettingsActivity extends Activity {
     private void addGestureSelector(LinearLayout parent, String label, String key,
                                     int defaultAction) {
         LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.VERTICAL);
-        row.setPadding(0, Ui.dp(this, 5), 0, Ui.dp(this, 5));
-        row.addView(Ui.text(this, label, 14, Ui.color("#475569"), true));
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, Ui.dp(this, 2), 0, Ui.dp(this, 2));
+        TextView gestureLabel = Ui.text(this, label, 13, Ui.color("#475569"), true);
+        gestureLabel.setGravity(Gravity.CENTER_VERTICAL);
+        row.addView(gestureLabel, new LinearLayout.LayoutParams(
+                Ui.dp(this, 76), Ui.dp(this, 44)));
         Spinner selector = new Spinner(this);
-        selector.setAdapter(new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_dropdown_item,
-                FloatingCaptureOverlay.ACTION_LABELS));
+        selector.setAdapter(compactAdapter(FloatingCaptureOverlay.ACTION_LABELS));
         int selected = preferences.getInt(key, defaultAction);
-        if (selected < FloatingCaptureOverlay.ACTION_NONE ||
-                selected > FloatingCaptureOverlay.ACTION_TOGGLE_MUTE) selected = defaultAction;
-        selector.setSelection(selected);
+        if (selected == FloatingCaptureOverlay.LEGACY_ACTION_RUN_APP_ACTION) {
+            selected = FloatingCaptureOverlay.ACTION_NONE;
+            preferences.edit().putInt(key, selected).apply();
+        }
+        int selectedPosition = actionPosition(selected);
+        if (selectedPosition < 0) selectedPosition = actionPosition(defaultAction);
+        selector.setSelection(Math.max(0, selectedPosition));
         selector.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(AdapterView<?> parentView, android.view.View view,
                                                   int position, long id) {
-                preferences.edit().putInt(key, position).apply();
+                preferences.edit().putInt(key,
+                        FloatingCaptureOverlay.ACTION_IDS[position]).apply();
             }
             @Override public void onNothingSelected(AdapterView<?> parentView) {}
         });
-        row.addView(selector, new LinearLayout.LayoutParams(-1, Ui.dp(this, 48)));
+        row.addView(selector, new LinearLayout.LayoutParams(0, Ui.dp(this, 44), 1f));
         parent.addView(row, new LinearLayout.LayoutParams(-1, -2));
+    }
+
+    private int actionPosition(int action) {
+        for (int position = 0; position < FloatingCaptureOverlay.ACTION_IDS.length; position++) {
+            if (FloatingCaptureOverlay.ACTION_IDS[position] == action) return position;
+        }
+        return -1;
     }
 }

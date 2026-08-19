@@ -5,16 +5,21 @@ import android.app.Activity;
 import android.app.NotificationManager;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.Color;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.text.TextUtils;
+import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
-import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
@@ -55,7 +60,7 @@ public class QuickActionSettingsActivity extends Activity {
         content.addView(back);
         content.addView(Ui.text(this, "系統快捷功能設定", 28, Ui.color("#0F172A"), true));
         TextView intro = Ui.text(this,
-                "這裡設定浮動按鈕要開啟的 App、App 支援的 Intent／Deep Link，以及手電筒和系統靜音需要的權限。設定完成後，回到上一頁將功能指派給手勢。",
+                "這裡設定浮動按鈕要開啟的 App，以及手電筒和系統靜音需要的權限。設定完成後，回到上一頁將功能指派給手勢。",
                 14, Ui.color("#64748B"), false);
         intro.setPadding(0, Ui.dp(this, 7), 0, Ui.dp(this, 18));
         content.addView(intro);
@@ -75,15 +80,14 @@ public class QuickActionSettingsActivity extends Activity {
         LinearLayout panel = panel();
         panel.addView(Ui.text(this, "指定應用程式", 17, Ui.color("#0F172A"), true));
         TextView hint = Ui.text(this,
-                "「開啟指定應用程式」會啟動下方選擇的 App；「執行指定程式動作」則會把 Intent Action 與 Deep Link 傳給該 App。",
+                "選擇要由浮動按鈕快速開啟的應用程式。",
                 13, Ui.color("#64748B"), false);
         hint.setPadding(0, Ui.dp(this, 5), 0, Ui.dp(this, 9));
         panel.addView(hint);
 
         List<AppChoice> apps = loadLaunchableApps();
         Spinner appSpinner = new Spinner(this);
-        ArrayAdapter<AppChoice> adapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_dropdown_item, apps);
+        ArrayAdapter<AppChoice> adapter = appChoiceAdapter(apps);
         appSpinner.setAdapter(adapter);
         String savedPackage = preferences.getString(SystemQuickActions.KEY_SELECTED_APP_PACKAGE, "");
         appSpinner.setSelection(findPackage(apps, savedPackage));
@@ -96,47 +100,11 @@ public class QuickActionSettingsActivity extends Activity {
 
             @Override public void onNothingSelected(AdapterView<?> parent) {}
         });
-        panel.addView(appSpinner, new LinearLayout.LayoutParams(-1, Ui.dp(this, 52)));
+        panel.addView(appSpinner, new LinearLayout.LayoutParams(-1, Ui.dp(this, 56)));
 
         Button testApp = actionButton("測試開啟指定應用程式", "#E8F0FE", Ui.color("#1D4ED8"));
         testApp.setOnClickListener(v -> showResult(SystemQuickActions.openSelectedApp(this)));
         panel.addView(testApp, buttonParams());
-
-        TextView actionTitle = Ui.text(this, "Intent Action", 14, Ui.color("#334155"), true);
-        actionTitle.setPadding(0, Ui.dp(this, 14), 0, 0);
-        panel.addView(actionTitle);
-        EditText actionInput = new EditText(this);
-        actionInput.setSingleLine(true);
-        actionInput.setText(preferences.getString(SystemQuickActions.KEY_APP_ACTION,
-                SystemQuickActions.DEFAULT_APP_ACTION));
-        actionInput.setHint("例如 android.intent.action.VIEW");
-        panel.addView(actionInput, new LinearLayout.LayoutParams(-1, Ui.dp(this, 52)));
-
-        TextView uriTitle = Ui.text(this, "Deep Link URI", 14, Ui.color("#334155"), true);
-        uriTitle.setPadding(0, Ui.dp(this, 8), 0, 0);
-        panel.addView(uriTitle);
-        EditText uriInput = new EditText(this);
-        uriInput.setSingleLine(true);
-        uriInput.setText(preferences.getString(SystemQuickActions.KEY_APP_ACTION_URI, ""));
-        uriInput.setHint("例如 https://、youtube:// 或 App 提供的網址");
-        panel.addView(uriInput, new LinearLayout.LayoutParams(-1, Ui.dp(this, 52)));
-
-        actionInput.addTextChangedListener(new SimpleTextWatcher(text ->
-                preferences.edit().putString(SystemQuickActions.KEY_APP_ACTION, text).apply()));
-        uriInput.addTextChangedListener(new SimpleTextWatcher(text ->
-                preferences.edit().putString(SystemQuickActions.KEY_APP_ACTION_URI, text).apply()));
-
-        Button testAction = actionButton("測試指定程式動作", "#2563EB", Color.WHITE);
-        testAction.setOnClickListener(v -> showResult(SystemQuickActions.runConfiguredAppAction(this)));
-        LinearLayout.LayoutParams testActionParams = buttonParams();
-        testActionParams.topMargin = Ui.dp(this, 8);
-        panel.addView(testAction, testActionParams);
-
-        TextView limitation = Ui.text(this,
-                "程式動作必須是目標 App 對外支援的 Intent 或 Deep Link；Android 不允許 TestTools 任意執行其他 App 的內部按鈕。",
-                12, Ui.color("#64748B"), false);
-        limitation.setPadding(0, Ui.dp(this, 8), 0, 0);
-        panel.addView(limitation);
         addPanel(content, panel);
     }
 
@@ -175,8 +143,10 @@ public class QuickActionSettingsActivity extends Activity {
         NotificationManager manager =
                 (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         boolean policy = manager != null && manager.isNotificationPolicyAccessGranted();
-        permissionStatus.setText("手電筒相機權限：" + (camera ? "已允許" : "尚未允許")
-                + "\n系統靜音／勿擾模式：" + (policy ? "已允許" : "尚未允許"));
+        permissionStatus.setText(String.format(Locale.TAIWAN,
+                "手電筒相機權限：%s\n系統靜音／勿擾模式：%s",
+                camera ? "已允許" : "尚未允許",
+                policy ? "已允許" : "尚未允許"));
     }
 
     @Override
@@ -200,18 +170,75 @@ public class QuickActionSettingsActivity extends Activity {
             if (info.activityInfo == null || info.activityInfo.packageName == null) continue;
             String packageName = info.activityInfo.packageName;
             CharSequence labelValue = info.loadLabel(getPackageManager());
-            String label = labelValue == null ? packageName : labelValue.toString().trim();
-            unique.putIfAbsent(packageName, new AppChoice(packageName, label));
+            String label = labelValue == null ? "未命名應用程式" : labelValue.toString().trim();
+            if (label.isEmpty()) label = "未命名應用程式";
+            Drawable icon = info.loadIcon(getPackageManager());
+            unique.putIfAbsent(packageName, new AppChoice(packageName, label, icon));
         }
         String saved = preferences.getString(SystemQuickActions.KEY_SELECTED_APP_PACKAGE, "");
         if (saved != null && !saved.isEmpty() && !unique.containsKey(saved)) {
-            unique.put(saved, new AppChoice(saved, saved + "（目前無法啟動）"));
+            unique.put(saved, unavailableChoice(saved));
         }
         List<AppChoice> choices = new ArrayList<>(unique.values());
         Collator collator = Collator.getInstance(Locale.getDefault());
         choices.sort((left, right) -> collator.compare(left.label, right.label));
-        choices.add(0, new AppChoice("", "未指定"));
+        choices.add(0, new AppChoice("", "未指定", null));
         return choices;
+    }
+
+    private AppChoice unavailableChoice(String packageName) {
+        try {
+            ApplicationInfo info = getPackageManager().getApplicationInfo(packageName, 0);
+            CharSequence value = info.loadLabel(getPackageManager());
+            String label = value == null ? "先前選擇的應用程式" : value.toString().trim();
+            if (label.isEmpty()) label = "先前選擇的應用程式";
+            return new AppChoice(packageName, label + "（目前無法啟動）",
+                    info.loadIcon(getPackageManager()));
+        } catch (PackageManager.NameNotFoundException ignored) {
+            return new AppChoice(packageName, "先前選擇的應用程式（目前無法啟動）",
+                    getPackageManager().getDefaultActivityIcon());
+        }
+    }
+
+    private ArrayAdapter<AppChoice> appChoiceAdapter(List<AppChoice> apps) {
+        return new ArrayAdapter<AppChoice>(this, android.R.layout.simple_spinner_item, apps) {
+            @Override
+            public View getView(int position, View convertView, ViewGroup parent) {
+                return appChoiceView(apps.get(position), false);
+            }
+
+            @Override
+            public View getDropDownView(int position, View convertView, ViewGroup parent) {
+                return appChoiceView(apps.get(position), true);
+            }
+        };
+    }
+
+    private View appChoiceView(AppChoice choice, boolean dropdown) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setMinimumHeight(Ui.dp(this, dropdown ? 56 : 52));
+        row.setPadding(Ui.dp(this, 10), Ui.dp(this, 4),
+                Ui.dp(this, dropdown ? 12 : 34), Ui.dp(this, 4));
+        row.setBackground(Ui.background(
+                Ui.color(dropdown ? "#FFFFFF" : "#F1F5F9"), 10, this));
+
+        ImageView icon = new ImageView(this);
+        icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        if (choice.icon == null) icon.setVisibility(View.INVISIBLE);
+        else icon.setImageDrawable(choice.icon);
+        LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(
+                Ui.dp(this, 36), Ui.dp(this, 36));
+        iconParams.rightMargin = Ui.dp(this, 10);
+        row.addView(icon, iconParams);
+
+        TextView name = Ui.text(this, choice.label, 15, Ui.color("#0F172A"), false);
+        name.setSingleLine(true);
+        name.setEllipsize(TextUtils.TruncateAt.END);
+        name.setGravity(Gravity.CENTER_VERTICAL);
+        row.addView(name, new LinearLayout.LayoutParams(0, -1, 1f));
+        return row;
     }
 
     private int findPackage(List<AppChoice> apps, String packageName) {
@@ -257,26 +284,17 @@ public class QuickActionSettingsActivity extends Activity {
     private static final class AppChoice {
         final String packageName;
         final String label;
+        final Drawable icon;
 
-        AppChoice(String packageName, String label) {
+        AppChoice(String packageName, String label, Drawable icon) {
             this.packageName = packageName;
             this.label = label;
+            this.icon = icon;
         }
 
         @Override public String toString() {
-            return packageName.isEmpty() ? label : label + "（" + packageName + "）";
+            return label;
         }
     }
 
-    private static final class SimpleTextWatcher implements android.text.TextWatcher {
-        interface Listener { void onChanged(String text); }
-        private final Listener listener;
-
-        SimpleTextWatcher(Listener listener) { this.listener = listener; }
-        @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-        @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
-        @Override public void afterTextChanged(android.text.Editable editable) {
-            listener.onChanged(editable.toString());
-        }
-    }
 }
