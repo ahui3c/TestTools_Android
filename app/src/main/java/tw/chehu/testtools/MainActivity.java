@@ -31,16 +31,18 @@ public class MainActivity extends Activity {
 
         TextView title = Ui.text(this, "測試工具箱", 30, Ui.color("#0F172A"), true);
         content.addView(title);
-        TextView subtitle = Ui.text(this, "集中管理測試資源與顯示器測試功能", 15, Ui.color("#64748B"), false);
+        TextView subtitle = Ui.text(this, "集中管理手機測試、硬體檢測與維護功能", 15, Ui.color("#64748B"), false);
         subtitle.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 24));
         content.addView(subtitle);
 
         addCard(content, R.drawable.ic_module_resources, "常用資源", "在測試素材與常用程式頁簽間切換，快速開啟檔案、工具與網站", this::openLinks);
         addCard(content, R.drawable.ic_module_brightness, "測試亮度", "全螢幕顯示自訂比例的白色方形或圓形測試區域", () -> startActivity(new Intent(this, BrightnessSetupActivity.class)));
+        addCard(content, R.drawable.ic_module_screen_test, "螢幕綜合測試", "檢查純色、灰階、漸層、色條、像素細節與多點觸控", () -> startActivity(new Intent(this, ScreenDiagnosticsActivity.class)));
         addCard(content, R.drawable.ic_module_screenshot, "浮動快速截圖", "自訂單擊、雙擊與四方向滑動功能，長按後可拖曳移動", () -> startActivity(new Intent(this, ScreenshotSettingsActivity.class)));
         addCard(content, R.drawable.ic_module_backup, "影音快速備份", "將 DCIM／Pictures 備份至 LocalSend 接收端或 USB 外接磁碟", () -> startActivity(new Intent(this, tw.chehu.quicksend.MainActivity.class)));
         addCard(content, R.drawable.ic_module_battery, "充電數據監控", "每分鐘低負載記錄電量、充電狀態與電池端估算功率，可匯出 CSV", () -> startActivity(new Intent(this, ChargingMonitorActivity.class)));
         addCard(content, R.drawable.ic_module_device_info, "手機資訊", "查看並快速複製硬體、系統、螢幕、電池與相機資訊，可匯出 TXT", () -> startActivity(new Intent(this, DeviceInfoActivity.class)));
+        addCard(content, R.drawable.ic_module_camera_specs, "相機規格檢測", "逐顆鏡頭查看感光元件、焦段、光圈、防手震、錄影與 RAW 能力", () -> startActivity(new Intent(this, CameraSpecsActivity.class)));
         addCard(content, R.drawable.ic_module_update, "線上更新", "檢查 GitHub Release，快速下載並安裝最新版 APK", () -> startActivity(new Intent(this, OnlineUpdateActivity.class)));
 
         setContentView(scroll);

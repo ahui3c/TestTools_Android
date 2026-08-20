@@ -43,6 +43,16 @@
             android:foregroundServiceType="dataSync" />
         <activity android:name=".ChargingMonitorActivity" />
         <activity android:name=".DeviceInfoActivity" />
+        <activity android:name=".CameraSpecsActivity" />
+        <activity android:name=".ScreenDiagnosticsActivity" />
+        <activity
+            android:name=".ScreenPatternActivity"
+            android:configChanges="orientation|screenSize"
+            android:screenOrientation="unspecified" />
+        <activity
+            android:name=".TouchDiagnosticsActivity"
+            android:configChanges="orientation|screenSize"
+            android:screenOrientation="unspecified" />
         <activity android:name=".OnlineUpdateActivity" />
         <service
             android:name=".ChargingMonitorService"
