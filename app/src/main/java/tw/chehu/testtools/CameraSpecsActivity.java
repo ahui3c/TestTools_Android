@@ -179,11 +179,12 @@ public class CameraSpecsActivity extends Activity {
         back.setGravity(Gravity.CENTER_VERTICAL);
         back.setOnClickListener(v -> finish());
         content.addView(back);
-        content.addView(Ui.text(this, "相機規格檢測", 28, Ui.color("#0F172A"), true));
+        content.addView(Ui.text(this, "裝置資訊", 28, Ui.color("#0F172A"), true));
+        content.addView(DeviceInformationTabs.create(this, DeviceInformationTabs.Page.CAMERA));
         TextView intro = Ui.text(this,
                 "讀取 Camera2 公開能力。廠商相機 App 的合成像素、AI 模式與專屬錄影功能可能不會完整公開。點選任一資料可複製。",
                 14, Ui.color("#64748B"), false);
-        intro.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 14));
+        intro.setPadding(0, 0, 0, Ui.dp(this, 14));
         content.addView(intro);
 
         LinearLayout actions = new LinearLayout(this);

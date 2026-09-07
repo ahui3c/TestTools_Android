@@ -52,10 +52,8 @@ public class MainActivity extends Activity {
                         () -> startActivity(new Intent(this, BrightnessPresetActivity.class))),
                 new ModuleItem(R.drawable.ic_module_screen_test, "螢幕測試", "色彩、壞點與觸控",
                         () -> startActivity(new Intent(this, ScreenDiagnosticsActivity.class))),
-                new ModuleItem(R.drawable.ic_module_device_info, "手機資訊", "硬體與系統資料",
-                        () -> startActivity(new Intent(this, DeviceInfoActivity.class))),
-                new ModuleItem(R.drawable.ic_module_camera_specs, "相機規格", "鏡頭與錄影能力",
-                        () -> startActivity(new Intent(this, CameraSpecsActivity.class)))
+                new ModuleItem(R.drawable.ic_module_device_info, "裝置資訊", "手機硬體與相機規格",
+                        () -> startActivity(new Intent(this, DeviceInfoActivity.class)))
         });
 
         addSection(content, "工具與資料", new ModuleItem[] {

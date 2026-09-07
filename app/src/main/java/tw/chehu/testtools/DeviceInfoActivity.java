@@ -77,11 +77,12 @@ public class DeviceInfoActivity extends Activity {
         back.setPadding(0, 0, 0, Ui.dp(this, 16));
         back.setOnClickListener(v -> finish());
         content.addView(back);
-        content.addView(Ui.text(this, "手機資訊", 28, Ui.color("#0F172A"), true));
+        content.addView(Ui.text(this, "裝置資訊", 28, Ui.color("#0F172A"), true));
+        content.addView(DeviceInformationTabs.create(this, DeviceInformationTabs.Page.DEVICE));
         TextView intro = Ui.text(this,
-                "點選任一資料即可複製該項內容。部分序號、IMEI、電池設計容量及相機細節受 Android 或廠商限制，無法保證取得。",
+                "查看手機硬體與系統資料。點選任一資料即可複製；部分序號、IMEI 與電池設計容量受 Android 或廠商限制。",
                 14, Ui.color("#64748B"), false);
-        intro.setPadding(0, Ui.dp(this, 7), 0, Ui.dp(this, 16));
+        intro.setPadding(0, 0, 0, Ui.dp(this, 16));
         content.addView(intro);
 
         LinearLayout actions = new LinearLayout(this);
