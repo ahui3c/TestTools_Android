@@ -17,6 +17,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 public class MainActivity extends Activity {
+    private static final float HOME_TEXT_SCALE = 1.30f;
     private static final int COLOR_BACKGROUND = 0xFFF5F8FC;
     private static final int COLOR_INK = 0xFF0F172A;
     private static final int COLOR_MUTED = 0xFF64748B;
@@ -39,7 +40,7 @@ public class MainActivity extends Activity {
 
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(Ui.dp(this, 14), Ui.dp(this, 16), Ui.dp(this, 14), Ui.dp(this, 24));
+        applySystemBarPadding(content);
         scroll.addView(content);
 
         addHeader(content);
@@ -47,6 +48,8 @@ public class MainActivity extends Activity {
         addSection(content, "顯示與硬體", new ModuleItem[] {
                 new ModuleItem(R.drawable.ic_module_brightness, "測試亮度", "白色面積與亮度",
                         () -> startActivity(new Intent(this, BrightnessSetupActivity.class))),
+                new ModuleItem(R.drawable.ic_module_brightness_record, "亮度快速紀錄", "儲存與快速套用亮度",
+                        () -> startActivity(new Intent(this, BrightnessPresetActivity.class))),
                 new ModuleItem(R.drawable.ic_module_screen_test, "螢幕測試", "色彩、壞點與觸控",
                         () -> startActivity(new Intent(this, ScreenDiagnosticsActivity.class))),
                 new ModuleItem(R.drawable.ic_module_device_info, "手機資訊", "硬體與系統資料",
@@ -70,22 +73,22 @@ public class MainActivity extends Activity {
     }
 
     private void addHeader(LinearLayout parent) {
-        TextView eyebrow = Ui.text(this,
+        TextView eyebrow = homeText(
                 "TESTTOOLS  /  QUICK ACCESS", 11, COLOR_ACCENT, true);
         eyebrow.setLetterSpacing(0.08f);
         parent.addView(eyebrow);
 
-        TextView title = Ui.text(this, "測試工具箱", 25, COLOR_INK, true);
+        TextView title = homeText("測試工具箱", 25, COLOR_INK, true);
         title.setPadding(0, Ui.dp(this, 3), 0, 0);
         parent.addView(title);
 
-        TextView subtitle = Ui.text(this, "測試、檢測與維護，一頁快速進入", 13, COLOR_MUTED, false);
+        TextView subtitle = homeText("測試、檢測與維護，一頁快速進入", 13, COLOR_MUTED, false);
         subtitle.setPadding(0, Ui.dp(this, 3), 0, Ui.dp(this, 12));
         parent.addView(subtitle);
     }
 
     private void addSection(LinearLayout parent, String label, ModuleItem[] items) {
-        TextView heading = Ui.text(this, label, 13, COLOR_INK, true);
+        TextView heading = homeText(label, 13, COLOR_INK, true);
         heading.setPadding(Ui.dp(this, 2), Ui.dp(this, 8), 0, Ui.dp(this, 6));
         parent.addView(heading);
 
@@ -125,13 +128,13 @@ public class MainActivity extends Activity {
         icon.setBackground(Ui.background(COLOR_ACCENT_SOFT, 10, this));
         card.addView(icon, new LinearLayout.LayoutParams(Ui.dp(this, 38), Ui.dp(this, 38)));
 
-        TextView title = Ui.text(this, item.title, 15, COLOR_INK, true);
+        TextView title = homeText(item.title, 15, COLOR_INK, true);
         title.setMaxLines(2);
         title.setEllipsize(TextUtils.TruncateAt.END);
         title.setPadding(0, Ui.dp(this, 9), 0, 0);
         card.addView(title);
 
-        TextView detail = Ui.text(this, item.detail, 11.5f, COLOR_MUTED, false);
+        TextView detail = homeText(item.detail, 11.5f, COLOR_MUTED, false);
         detail.setMaxLines(2);
         detail.setEllipsize(TextUtils.TruncateAt.END);
         detail.setPadding(0, Ui.dp(this, 2), 0, 0);
@@ -144,7 +147,7 @@ public class MainActivity extends Activity {
     }
 
     private void addUpdateEntry(LinearLayout parent) {
-        TextView heading = Ui.text(this, "系統", 13, COLOR_INK, true);
+        TextView heading = homeText("系統", 13, COLOR_INK, true);
         heading.setPadding(Ui.dp(this, 2), Ui.dp(this, 10), 0, Ui.dp(this, 6));
         parent.addView(heading);
 
@@ -169,10 +172,10 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams copyParams = new LinearLayout.LayoutParams(0, -2, 1f);
         copyParams.leftMargin = Ui.dp(this, 10);
         row.addView(copy, copyParams);
-        copy.addView(Ui.text(this, "線上更新", 15, COLOR_INK, true));
-        copy.addView(Ui.text(this, "檢查並安裝最新版本", 11.5f, COLOR_MUTED, false));
+        copy.addView(homeText("線上更新", 15, COLOR_INK, true));
+        copy.addView(homeText("檢查並安裝最新版本", 11.5f, COLOR_MUTED, false));
 
-        TextView arrow = Ui.text(this, "›", 25, COLOR_ACCENT, false);
+        TextView arrow = homeText("›", 25, COLOR_ACCENT, false);
         row.addView(arrow);
         row.setContentDescription("線上更新，檢查並安裝最新版本");
         row.setOnClickListener(v -> startActivity(new Intent(this, OnlineUpdateActivity.class)));
@@ -189,6 +192,26 @@ public class MainActivity extends Activity {
         mask.setColor(Color.WHITE);
         mask.setCornerRadius(Ui.dp(this, 14));
         return new RippleDrawable(ColorStateList.valueOf(0x182563EB), content, mask);
+    }
+
+    @SuppressWarnings("deprecation")
+    private void applySystemBarPadding(LinearLayout content) {
+        int horizontal = Ui.dp(this, 14);
+        int top = Ui.dp(this, 16);
+        int bottom = Ui.dp(this, 24);
+        content.setPadding(horizontal, top, horizontal, bottom);
+        content.setOnApplyWindowInsetsListener((view, insets) -> {
+            view.setPadding(horizontal,
+                    top + insets.getSystemWindowInsetTop(),
+                    horizontal,
+                    bottom + insets.getSystemWindowInsetBottom());
+            return insets;
+        });
+        content.requestApplyInsets();
+    }
+
+    private TextView homeText(String value, float sp, int color, boolean bold) {
+        return Ui.text(this, value, sp * HOME_TEXT_SCALE, color, bold);
     }
 
     private void openLinks() {

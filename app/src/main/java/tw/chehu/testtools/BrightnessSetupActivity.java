@@ -4,7 +4,9 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
@@ -16,6 +18,7 @@ import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.ScrollView;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.util.ArrayList;
@@ -24,6 +27,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class BrightnessSetupActivity extends Activity {
+    private static final int REQUEST_WRITE_SETTINGS = 4301;
     private static final String PREFS = "brightness_settings";
     private static final String KEY_AVAILABLE = "available_percentages";
     private static final String KEY_SELECTED = "selected_percentages";
@@ -35,10 +39,14 @@ public class BrightnessSetupActivity extends Activity {
     private LinearLayout percentageRow;
     private EditText customInput;
     private CheckBox maximumBrightness;
+    private Switch automaticBrightness;
+    private TextView automaticBrightnessStatus;
     private RadioGroup shapeGroup;
     private int circleButtonId;
     private SharedPreferences preferences;
     private boolean settingsReady;
+    private boolean updatingAutomaticBrightness;
+    private Boolean pendingAutomaticBrightness;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -124,6 +132,24 @@ public class BrightnessSetupActivity extends Activity {
         maximumBrightness.setPadding(0, Ui.dp(this, 10), 0, Ui.dp(this, 10));
         addPanel(content, maximumBrightness);
 
+        addSectionTitle(content, "系統自動亮度");
+        LinearLayout automaticPanel = new LinearLayout(this);
+        automaticPanel.setOrientation(LinearLayout.VERTICAL);
+        automaticBrightness = new Switch(this);
+        automaticBrightness.setText("自動調整螢幕亮度");
+        automaticBrightness.setTextSize(16);
+        automaticBrightness.setMinHeight(Ui.dp(this, 48));
+        automaticPanel.addView(automaticBrightness, new LinearLayout.LayoutParams(-1, -2));
+        automaticBrightnessStatus = Ui.text(this, "正在讀取系統設定…", 13,
+                Ui.color("#64748B"), false);
+        automaticBrightnessStatus.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 4));
+        automaticPanel.addView(automaticBrightnessStatus);
+        automaticBrightness.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (!updatingAutomaticBrightness) requestAutomaticBrightness(isChecked);
+        });
+        addPanel(content, automaticPanel);
+        refreshAutomaticBrightness();
+
         Button start = new Button(this);
         start.setText("開始全螢幕測試");
         start.setTextSize(17);
@@ -144,6 +170,75 @@ public class BrightnessSetupActivity extends Activity {
     protected void onPause() {
         saveSettings();
         super.onPause();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (automaticBrightness == null) return;
+        if (pendingAutomaticBrightness != null && Settings.System.canWrite(this)) {
+            boolean requested = pendingAutomaticBrightness;
+            pendingAutomaticBrightness = null;
+            applyAutomaticBrightness(requested);
+        } else {
+            refreshAutomaticBrightness();
+        }
+    }
+
+    private void requestAutomaticBrightness(boolean enabled) {
+        if (!Settings.System.canWrite(this)) {
+            pendingAutomaticBrightness = enabled;
+            refreshAutomaticBrightness();
+            Intent permission = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS,
+                    Uri.parse("package:" + getPackageName()));
+            try {
+                startActivityForResult(permission, REQUEST_WRITE_SETTINGS);
+                Toast.makeText(this, "請允許修改系統設定，返回後會自動完成切換",
+                        Toast.LENGTH_LONG).show();
+            } catch (RuntimeException error) {
+                pendingAutomaticBrightness = null;
+                Toast.makeText(this, "無法開啟修改系統設定權限頁面",
+                        Toast.LENGTH_LONG).show();
+            }
+            return;
+        }
+        applyAutomaticBrightness(enabled);
+    }
+
+    private void applyAutomaticBrightness(boolean enabled) {
+        int mode = enabled
+                ? Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC
+                : Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL;
+        boolean saved;
+        try {
+            saved = Settings.System.putInt(getContentResolver(),
+                    Settings.System.SCREEN_BRIGHTNESS_MODE, mode);
+        } catch (SecurityException error) {
+            saved = false;
+        }
+        refreshAutomaticBrightness();
+        Toast.makeText(this, saved
+                        ? (enabled ? "已開啟系統自動亮度" : "已關閉系統自動亮度")
+                        : "無法修改自動亮度設定",
+                Toast.LENGTH_SHORT).show();
+    }
+
+    private void refreshAutomaticBrightness() {
+        if (automaticBrightness == null || automaticBrightnessStatus == null) return;
+        int mode = Settings.System.getInt(getContentResolver(),
+                Settings.System.SCREEN_BRIGHTNESS_MODE,
+                Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL);
+        boolean enabled = mode == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC;
+        updatingAutomaticBrightness = true;
+        automaticBrightness.setChecked(enabled);
+        updatingAutomaticBrightness = false;
+        String state = enabled
+                ? "目前：已開啟，亮度會依環境光線自動調整"
+                : "目前：已關閉，使用系統設定的固定亮度";
+        if (!Settings.System.canWrite(this)) {
+            state += "\n切換時需要允許 TestTools 修改系統設定";
+        }
+        automaticBrightnessStatus.setText(state);
     }
 
     private void addSectionTitle(LinearLayout content, String title) {
